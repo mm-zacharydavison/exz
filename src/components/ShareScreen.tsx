@@ -1,16 +1,18 @@
 import { Box, Text, useInput } from "ink";
-import { useRef, useState } from "react";
-import type { Action, SourceConfig } from "../types.ts";
+import { useEffect, useRef, useState } from "react";
+import { runAction } from "../core/runner.ts";
+import type { Action, SourceConfig, XcliConfig } from "../types.ts";
 
-type Step = "pick-source" | "pick-path" | "custom-path";
+type Step = "test-run" | "test-run-output" | "pick-source" | "pick-path";
 
 interface ShareScreenProps {
   newActions: Action[];
   sources: SourceConfig[];
-  /** Default org name for scoping (from git remote) */
   org?: string;
-  /** Current git user name for default path */
   userName?: string;
+  cwd: string;
+  config?: XcliConfig;
+  existingDirs: string[];
   onDone: (result?: { source?: SourceConfig; targetPath: string }) => void;
 }
 
@@ -19,10 +21,14 @@ export function ShareScreen({
   sources,
   org,
   userName,
+  cwd,
+  config,
+  existingDirs,
   onDone,
 }: ShareScreenProps) {
-  // Skip source picker if no external sources — go straight to path
-  const initialStep: Step = sources.length > 0 ? "pick-source" : "pick-path";
+  const afterTestRun: Step = sources.length > 0 ? "pick-source" : "pick-path";
+  const initialStep: Step = newActions.length > 0 ? "test-run" : afterTestRun;
+
   const [step, setStep] = useState<Step>(initialStep);
   const stepRef = useRef(step);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -34,6 +40,14 @@ export function ShareScreen({
   const [customPath, setCustomPath] = useState("");
   const customPathRef = useRef(customPath);
 
+  // Test-run state
+  const [testRunIndex, setTestRunIndex] = useState(0);
+  const testRunIndexRef = useRef(testRunIndex);
+  const [testRunLines, setTestRunLines] = useState<string[]>([]);
+  const [testRunDone, setTestRunDone] = useState(false);
+  const testRunDoneRef = useRef(testRunDone);
+  const [testRunExitCode, setTestRunExitCode] = useState<number | null>(null);
+
   const defaultPath = buildDefaultPath(org, userName);
 
   const sourceOptions = [
@@ -41,10 +55,7 @@ export function ShareScreen({
     ...sources.map((s) => ({ label: `Push to ${s.repo}`, value: s.repo })),
   ];
 
-  const pathOptions = [
-    { label: defaultPath, value: defaultPath },
-    { label: "Somewhere else...", value: "__custom__" },
-  ];
+  const pathOptions = buildPathOptions(defaultPath, org, existingDirs);
 
   const updateStep = (s: Step) => {
     stepRef.current = s;
@@ -62,17 +73,131 @@ export function ShareScreen({
     customPathRef.current = p;
     setCustomPath(p);
   };
+  const updateTestRunIndex = (i: number) => {
+    testRunIndexRef.current = i;
+    setTestRunIndex(i);
+  };
+  const updateTestRunDone = (d: boolean) => {
+    testRunDoneRef.current = d;
+    setTestRunDone(d);
+  };
+
+  const advancePastTestRun = () => {
+    updateStep(afterTestRun);
+    updateIndex(0);
+  };
+
+  const advanceToNextAction = () => {
+    const nextIndex = testRunIndexRef.current + 1;
+    if (nextIndex >= newActions.length) {
+      advancePastTestRun();
+    } else {
+      updateTestRunIndex(nextIndex);
+      updateStep("test-run");
+      setTestRunLines([]);
+      updateTestRunDone(false);
+      setTestRunExitCode(null);
+    }
+  };
+
+  const startTestRun = () => {
+    updateStep("test-run-output");
+  };
+
+  // Run action only when user confirms (step = "test-run-output")
+  useEffect(() => {
+    if (step !== "test-run-output") return;
+    if (testRunIndex >= newActions.length) return;
+
+    const action = newActions[testRunIndex];
+    if (!action) return;
+
+    let aborted = false;
+
+    setTestRunLines([]);
+    testRunDoneRef.current = false;
+    setTestRunDone(false);
+    setTestRunExitCode(null);
+
+    let handle: ReturnType<typeof runAction>;
+    try {
+      handle = runAction(action, { cwd, config });
+    } catch {
+      testRunDoneRef.current = true;
+      setTestRunDone(true);
+      setTestRunExitCode(-1);
+      return;
+    }
+
+    const readStream = async (stream: ReadableStream<Uint8Array>) => {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || aborted) break;
+          const text = decoder.decode(value);
+          const newLines = text.split("\n").filter((l) => l.length > 0);
+          if (newLines.length > 0) {
+            setTestRunLines((prev) => [...prev, ...newLines]);
+          }
+        }
+      } catch {
+        // Stream closed
+      }
+    };
+
+    readStream(handle.stdout);
+    readStream(handle.stderr);
+
+    handle.proc.exited.then((code) => {
+      if (aborted) return;
+      setTestRunExitCode(code);
+      testRunDoneRef.current = true;
+      setTestRunDone(true);
+    });
+
+    return () => {
+      aborted = true;
+      try {
+        handle.proc.kill();
+      } catch {
+        // Already dead
+      }
+    };
+  }, [step, testRunIndex, cwd, config, newActions]);
 
   useInput((input, key) => {
     const curStep = stepRef.current;
     const curIndex = selectedIndexRef.current;
 
-    if (key.escape) {
-      if (curStep === "custom-path") {
-        updateStep("pick-path");
-        updateCustomPath("");
+    // Test-run prompt (before running)
+    if (curStep === "test-run") {
+      if (key.return) {
+        startTestRun();
         return;
       }
+      if (input === "s" || key.escape) {
+        advancePastTestRun();
+        return;
+      }
+      return;
+    }
+
+    // Test-run output (action is running or finished)
+    if (curStep === "test-run-output") {
+      if (input === "s" || key.escape) {
+        advancePastTestRun();
+        return;
+      }
+      if (key.return && testRunDoneRef.current) {
+        advanceToNextAction();
+        return;
+      }
+      return;
+    }
+
+    if (key.escape) {
       if (curStep === "pick-path") {
         if (sources.length > 0) {
           updateStep("pick-source");
@@ -86,46 +211,37 @@ export function ShareScreen({
       return;
     }
 
-    if (curStep === "custom-path") {
-      if (key.return) {
-        const path = customPathRef.current.trim();
-        if (path) {
-          const source = selectedSourceRef.current;
-          onDone({ source: source ?? undefined, targetPath: path });
-        }
-        return;
-      }
-      if (key.backspace || key.delete) {
-        updateCustomPath(customPathRef.current.slice(0, -1));
-        return;
-      }
-      if (!key.ctrl && !key.meta && input) {
-        updateCustomPath(customPathRef.current + input);
-      }
-      return;
-    }
+    // Pick-path step
+    if (curStep === "pick-path") {
+      const isOnCustom = curIndex === pathOptions.length - 1;
 
-    if (key.return) {
-      if (curStep === "pick-source") {
-        const selected = sourceOptions[curIndex];
-        if (!selected?.value) {
-          // "Keep in .xcli" — no external source, go to path picker
-          updateSource(null);
-        } else {
-          const source = sources.find((s) => s.repo === selected.value);
-          updateSource(source ?? null);
-        }
-        updateIndex(0);
-        updateStep("pick-path");
-        return;
-      }
-      if (curStep === "pick-path") {
-        const selected = pathOptions[curIndex];
-        if (selected?.value === "__custom__") {
-          updateCustomPath(defaultPath);
-          updateStep("custom-path");
+      if (isOnCustom) {
+        if (key.return) {
+          const path = customPathRef.current.trim();
+          if (path) {
+            const source = selectedSourceRef.current;
+            onDone({ source: source ?? undefined, targetPath: path });
+          }
           return;
         }
+        if (key.backspace || key.delete) {
+          updateCustomPath(customPathRef.current.slice(0, -1));
+          return;
+        }
+        if (key.upArrow) {
+          updateIndex(Math.max(0, curIndex - 1));
+          return;
+        }
+        // Printable chars go into the text field
+        if (!key.ctrl && !key.meta && input && !key.downArrow) {
+          updateCustomPath(customPathRef.current + input);
+          return;
+        }
+        return;
+      }
+
+      if (key.return) {
+        const selected = pathOptions[curIndex];
         if (selected) {
           const source = selectedSourceRef.current;
           onDone({
@@ -135,23 +251,123 @@ export function ShareScreen({
         }
         return;
       }
+
+      if (key.upArrow || input === "k") {
+        updateIndex(Math.max(0, curIndex - 1));
+        return;
+      }
+      if (key.downArrow || input === "j") {
+        updateIndex(Math.min(pathOptions.length - 1, curIndex + 1));
+        return;
+      }
+      return;
     }
 
-    if (key.upArrow || input === "k") {
-      updateIndex(Math.max(0, curIndex - 1));
-      return;
-    }
-    if (key.downArrow || input === "j") {
-      const maxIndex =
-        curStep === "pick-source"
-          ? sourceOptions.length - 1
-          : pathOptions.length - 1;
-      updateIndex(Math.min(maxIndex, curIndex + 1));
-      return;
+    // Pick-source step
+    if (curStep === "pick-source") {
+      if (key.return) {
+        const selected = sourceOptions[curIndex];
+        if (!selected?.value) {
+          updateSource(null);
+        } else {
+          const source = sources.find((s) => s.repo === selected.value);
+          updateSource(source ?? null);
+        }
+        updateIndex(0);
+        updateStep("pick-path");
+        return;
+      }
+
+      if (key.upArrow || input === "k") {
+        updateIndex(Math.max(0, curIndex - 1));
+        return;
+      }
+      if (key.downArrow || input === "j") {
+        updateIndex(Math.min(sourceOptions.length - 1, curIndex + 1));
+        return;
+      }
     }
   });
 
-  const options = step === "pick-source" ? sourceOptions : pathOptions;
+  // Render test-run prompt (before running)
+  if (step === "test-run") {
+    const action = newActions[testRunIndex];
+    if (!action) return null;
+
+    const total = newActions.length;
+    const current = testRunIndex + 1;
+
+    return (
+      <Box flexDirection="column">
+        <Box marginBottom={1}>
+          <Text bold>
+            Test run ({current}/{total})
+          </Text>
+        </Box>
+
+        <Text>
+          {action.meta.emoji ? `${action.meta.emoji} ` : ""}
+          {action.meta.name}
+          {action.meta.description && (
+            <Text dimColor> ({action.meta.description})</Text>
+          )}
+        </Text>
+
+        <Box marginTop={1}>
+          <Text dimColor>Press enter to run, s to skip</Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Render test-run output (action running or finished)
+  if (step === "test-run-output") {
+    const action = newActions[testRunIndex];
+    if (!action) return null;
+
+    const total = newActions.length;
+    const current = testRunIndex + 1;
+
+    return (
+      <Box flexDirection="column">
+        <Box marginBottom={1}>
+          <Text bold>
+            Test run ({current}/{total})
+          </Text>
+        </Box>
+
+        <Box marginBottom={1}>
+          <Text bold>
+            {action.meta.emoji ? `${action.meta.emoji} ` : ""}
+            {action.meta.name}
+          </Text>
+        </Box>
+
+        {testRunLines.map((line, i) => (
+          <Text key={`${i}`}>{line}</Text>
+        ))}
+
+        {!testRunDone && <Text dimColor>Running...</Text>}
+        {testRunDone && testRunExitCode !== null && (
+          <Box marginTop={1}>
+            <Text color={testRunExitCode === 0 ? "green" : "red"}>
+              {testRunExitCode === 0 ? "✓" : "✗"} exit code {testRunExitCode}
+            </Text>
+          </Box>
+        )}
+
+        <Box marginTop={1}>
+          <Text dimColor>
+            {testRunDone
+              ? testRunIndex < newActions.length - 1
+                ? "Press enter to continue, s to skip remaining"
+                : "Press enter to continue"
+              : "Running... press s to skip"}
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">
@@ -169,14 +385,12 @@ export function ShareScreen({
         </Box>
       ))}
 
-      {(step === "pick-source" || step === "pick-path") && (
+      {step === "pick-source" && (
         <Box marginTop={1} flexDirection="column">
           <Box marginBottom={1}>
-            <Text bold>
-              {step === "pick-source" ? "Share to:" : "Destination path:"}
-            </Text>
+            <Text bold>Share to:</Text>
           </Box>
-          {options.map((opt, i) => (
+          {sourceOptions.map((opt, i) => (
             <Text
               key={opt.label}
               color={i === selectedIndex ? "cyan" : undefined}
@@ -188,24 +402,46 @@ export function ShareScreen({
         </Box>
       )}
 
-      {step === "custom-path" && (
+      {step === "pick-path" && (
         <Box marginTop={1} flexDirection="column">
           <Box marginBottom={1}>
-            <Text bold>Enter destination path:</Text>
+            <Text bold>Destination path:</Text>
           </Box>
-          <Box>
-            <Text>
-              {"  "}
-              {customPath}
-            </Text>
-            <Text dimColor>█</Text>
-          </Box>
+          {pathOptions.map((opt, i) => {
+            if (opt.value === "__custom__") {
+              const isSelected = i === selectedIndex;
+              return (
+                <Box key="__custom__">
+                  <Text color={isSelected ? "cyan" : undefined}>
+                    {isSelected ? "❯ " : "  "}
+                  </Text>
+                  {customPath ? (
+                    <Text color={isSelected ? "cyan" : undefined}>
+                      {customPath}
+                    </Text>
+                  ) : (
+                    <Text dimColor>actions/your/path</Text>
+                  )}
+                  {isSelected && <Text dimColor>█</Text>}
+                </Box>
+              );
+            }
+            return (
+              <Text
+                key={opt.label}
+                color={i === selectedIndex ? "cyan" : undefined}
+              >
+                {i === selectedIndex ? "❯ " : "  "}
+                {opt.label}
+              </Text>
+            );
+          })}
         </Box>
       )}
 
       <Box marginTop={1}>
         <Text dimColor>
-          {step === "custom-path"
+          {step === "pick-path" && selectedIndex === pathOptions.length - 1
             ? "Type a path, enter to confirm, esc to go back"
             : "Press enter to confirm, esc to go back"}
         </Text>
@@ -215,8 +451,43 @@ export function ShareScreen({
 }
 
 function buildDefaultPath(org?: string, userName?: string): string {
-  const parts = ["actions"];
-  if (org) parts.push(`@${org}`);
+  if (!org) return "actions";
+  const parts = ["actions", `@${org}`];
   if (userName) parts.push(userName);
   return parts.join("/");
+}
+
+function buildPathOptions(
+  defaultPath: string,
+  org?: string,
+  existingDirs: string[] = [],
+): { label: string; value: string }[] {
+  const options: { label: string; value: string }[] = [];
+  const seen = new Set<string>();
+
+  // Default org path (only when org exists)
+  if (org && defaultPath !== "actions") {
+    options.push({ label: defaultPath, value: defaultPath });
+    seen.add(defaultPath);
+  }
+
+  // Root level
+  if (!seen.has("actions")) {
+    options.push({ label: "actions/", value: "actions" });
+    seen.add("actions");
+  }
+
+  // Existing directories
+  for (const dir of existingDirs) {
+    const path = `actions/${dir}`;
+    if (!seen.has(path)) {
+      options.push({ label: `actions/${dir}/`, value: path });
+      seen.add(path);
+    }
+  }
+
+  // Custom text field (always last)
+  options.push({ label: "__custom__", value: "__custom__" });
+
+  return options;
 }

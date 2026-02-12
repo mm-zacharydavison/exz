@@ -74,12 +74,23 @@ export function App({
   }
 
   if (showShareScreen && generationResult) {
+    const existingDirs = [
+      ...new Set(
+        actions
+          .filter((a) => a.category.length > 0)
+          .map((a) => a.category[0] as string),
+      ),
+    ];
+
     return (
       <ShareScreen
         newActions={generationResult.newActions}
         sources={config.sources ?? []}
         org={org}
         userName={userName}
+        cwd={cwd}
+        config={config}
+        existingDirs={existingDirs}
         onDone={() => setShowShareScreen(false)}
       />
     );
@@ -111,9 +122,9 @@ export function App({
                 {item.type === "category" ? "📁 " : ""}
                 {item.type === "action" && item.emoji ? `${item.emoji} ` : ""}
                 {item.label}
-                {item.description ? ` — ${item.description}` : ""}
                 {item.type === "category" ? " ▸" : ""}
               </Text>
+              {item.description && <Text dimColor> ({item.description})</Text>}
               {item.source && <Text dimColor>{` ${item.source}`}</Text>}
             </Box>
           ))
@@ -155,12 +166,12 @@ export function App({
   return null;
 }
 
-function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
+export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
   const categories = new Set<string>();
   const items: MenuItem[] = [];
 
   if (path.length === 0) {
-    // Root level: show categories AND all actions
+    // Root level: show category folders and root-level actions only
     for (const action of actions) {
       if (action.category.length > 0) {
         const topCategory = action.category[0] as string;
@@ -172,16 +183,17 @@ function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
             value: topCategory,
           });
         }
+      } else {
+        items.push({
+          type: "action",
+          label: action.meta.name,
+          emoji: action.meta.emoji,
+          description: action.meta.description,
+          value: action.id,
+          source:
+            action.source?.type !== "local" ? action.source?.label : undefined,
+        });
       }
-      items.push({
-        type: "action",
-        label: action.meta.name,
-        emoji: action.meta.emoji,
-        description: action.meta.description,
-        value: action.id,
-        source:
-          action.source?.type !== "local" ? action.source?.label : undefined,
-      });
     }
   } else {
     for (const action of actions) {

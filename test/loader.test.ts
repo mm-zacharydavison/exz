@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type CLISession, fixturePath, spawnCLI } from "./harness";
+import { type CLISession, fixturePath, Keys, spawnCLI } from "./harness";
 
 describe("action discovery", () => {
   let cli: CLISession;
@@ -30,14 +30,18 @@ describe("action discovery", () => {
   });
 
   test("assigns correct runtime for .ts files", async () => {
-    // Verified indirectly: running a .ts action should use bun
+    // Navigate into the database category to find categorized actions
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    await cli.waitForText("database");
+    cli.press(Keys.ENTER);
     await cli.waitForText("Reset Database");
   });
 
   test("assigns correct runtime for .py files", async () => {
-    // Verified indirectly: running a .py action should use python3
+    // Navigate into the database category to find categorized actions
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    await cli.waitForText("database");
+    cli.press(Keys.ENTER);
     await cli.waitForText("Seed Data");
   });
 

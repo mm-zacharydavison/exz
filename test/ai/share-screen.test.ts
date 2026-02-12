@@ -16,10 +16,334 @@ function makeAction(overrides: Partial<Action> = {}): Action {
   };
 }
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
+const tick = () => new Promise((r) => setTimeout(r, 10));
 
 describe("ShareScreen", () => {
-  test("shows list of new actions", () => {
+  // --- test-run prompt step ---
+
+  test("shows test-run prompt initially", () => {
+    const actions = [makeAction()];
+
+    const { lastFrame } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("Test run (1/1)");
+    expect(output).toContain("Test Action");
+    expect(output).toContain("Press enter to run, s to skip");
+  });
+
+  test("pressing s skips test-run to path picker (no sources)", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("Destination path:");
+  });
+
+  test("pressing s skips test-run to source picker (with sources)", async () => {
+    const actions = [makeAction()];
+    const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources,
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("Share to:");
+  });
+
+  test("pressing escape skips test-run to next step", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("\x1b");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("Destination path:");
+  });
+
+  test("test-run shows action counter for multiple actions", () => {
+    const actions = [
+      makeAction({ id: "a", meta: { name: "Action A" } }),
+      makeAction({ id: "b", meta: { name: "Action B" } }),
+      makeAction({ id: "c", meta: { name: "Action C" } }),
+    ];
+
+    const { lastFrame } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("(1/3)");
+    expect(output).toContain("Action A");
+  });
+
+  test("test-run prompt shows action description in brackets", () => {
+    const actions = [
+      makeAction({
+        meta: { name: "Deploy", description: "Deploy to staging" },
+      }),
+    ];
+
+    const { lastFrame } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("Deploy");
+    expect(output).toContain("(Deploy to staging)");
+  });
+
+  // --- existing directory options ---
+
+  test("shows existing directories as path options", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        org: "acme",
+        userName: "alice",
+        cwd: "/tmp",
+        existingDirs: ["deploy", "database"],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("actions/@acme/alice");
+    expect(output).toContain("actions/");
+    expect(output).toContain("actions/deploy/");
+    expect(output).toContain("actions/database/");
+  });
+
+  // --- inline custom path field ---
+
+  test("shows custom path field with placeholder", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("actions/your/path");
+  });
+
+  test("typing in custom path field works", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    // Skip test-run
+    stdin.write("s");
+    await tick();
+
+    // Navigate to custom field (no org: actions/ at 0, custom at 1)
+    stdin.write("\x1b[B"); // arrow down to custom
+    await tick();
+
+    // Type a path
+    stdin.write("actions/my/scripts");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("actions/my/scripts");
+  });
+
+  test("submitting custom path returns result", async () => {
+    let doneResult: unknown;
+    const actions = [makeAction()];
+
+    const { stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: (result) => {
+          doneResult = result;
+        },
+      }),
+    );
+
+    // Skip test-run
+    stdin.write("s");
+    await tick();
+
+    // Navigate to custom field (no org: actions/ at 0, custom at 1)
+    stdin.write("\x1b[B");
+    await tick();
+
+    // Type path and submit
+    stdin.write("actions/custom/dir");
+    await tick();
+    stdin.write("\r");
+    await tick();
+
+    expect(doneResult).toEqual({
+      source: undefined,
+      targetPath: "actions/custom/dir",
+    });
+  });
+
+  test("backspace in custom field removes characters", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    // Navigate to custom field
+    stdin.write("\x1b[B");
+    await tick();
+
+    stdin.write("abc");
+    await tick();
+    stdin.write("\x7f"); // backspace
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("ab");
+  });
+
+  // --- default path logic ---
+
+  test("non-org default path is actions/", async () => {
+    const actions = [makeAction()];
+
+    const { lastFrame, stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: () => {},
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    const output = stripAnsi(lastFrame() ?? "");
+    expect(output).toContain("actions/");
+    expect(output).not.toContain("@");
+  });
+
+  test("userName without org defaults to actions/", async () => {
+    let doneResult: unknown;
+    const actions = [makeAction()];
+
+    const { stdin } = render(
+      React.createElement(ShareScreen, {
+        newActions: actions,
+        sources: [],
+        userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
+        onDone: (result) => {
+          doneResult = result;
+        },
+      }),
+    );
+
+    stdin.write("s");
+    await tick();
+
+    // First option is actions/ (root), confirm it
+    stdin.write("\r");
+    await tick();
+
+    expect(doneResult).toEqual({
+      source: undefined,
+      targetPath: "actions",
+    });
+  });
+
+  // --- updated existing tests ---
+
+  test("shows list of new actions", async () => {
     const actions = [
       makeAction({
         id: "deploy/staging",
@@ -34,49 +358,63 @@ describe("ShareScreen", () => {
       }),
     ];
 
-    const { lastFrame } = render(
+    const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
+
+    stdin.write("s");
+    await tick();
 
     const output = stripAnsi(lastFrame() ?? "");
     expect(output).toContain("Deploy to Staging");
     expect(output).toContain("Reset Cache");
   });
 
-  test("shows path picker immediately when no sources configured", () => {
+  test("shows path picker after skipping test-run (no sources)", async () => {
     const actions = [makeAction()];
 
-    const { lastFrame } = render(
+    const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
         org: "acme",
         userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
+
+    stdin.write("s");
+    await tick();
 
     const output = stripAnsi(lastFrame() ?? "");
     expect(output).toContain("Destination path:");
     expect(output).toContain("actions/@acme/alice");
-    expect(output).toContain("Somewhere else...");
   });
 
-  test("shows source picker when sources are configured", () => {
+  test("shows source picker after skipping test-run (with sources)", async () => {
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
 
-    const { lastFrame } = render(
+    const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
+
+    stdin.write("s");
+    await tick();
 
     const output = stripAnsi(lastFrame() ?? "");
     expect(output).toContain("Share to:");
@@ -84,7 +422,7 @@ describe("ShareScreen", () => {
     expect(output).toContain("myorg/shared-ops");
   });
 
-  test("ESC from path picker (no sources) calls onDone", () => {
+  test("ESC from path picker (no sources) calls onDone", async () => {
     let doneCalled = false;
     const actions = [makeAction()];
 
@@ -92,17 +430,21 @@ describe("ShareScreen", () => {
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {
           doneCalled = true;
         },
       }),
     );
 
-    stdin.write("\x1b");
+    stdin.write("s"); // skip test-run
+    await tick();
+    stdin.write("\x1b"); // esc from path picker
     expect(doneCalled).toBe(true);
   });
 
-  test("ESC from source picker calls onDone", () => {
+  test("ESC from source picker calls onDone", async () => {
     let doneCalled = false;
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
@@ -111,17 +453,21 @@ describe("ShareScreen", () => {
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {
           doneCalled = true;
         },
       }),
     );
 
-    stdin.write("\x1b");
+    stdin.write("s"); // skip test-run
+    await tick();
+    stdin.write("\x1b"); // esc from source picker
     expect(doneCalled).toBe(true);
   });
 
-  test("confirming default path (no sources) returns path without source", () => {
+  test("confirming default path (no sources) returns path without source", async () => {
     let doneResult: unknown;
     const actions = [makeAction()];
 
@@ -131,14 +477,17 @@ describe("ShareScreen", () => {
         sources: [],
         org: "acme",
         userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
       }),
     );
 
-    // Path picker is already showing, confirm default
-    stdin.write("\r");
+    stdin.write("s"); // skip test-run
+    await tick();
+    stdin.write("\r"); // confirm default path
 
     expect(doneResult).toEqual({
       source: undefined,
@@ -156,10 +505,14 @@ describe("ShareScreen", () => {
         sources,
         org: "acme",
         userName: "bob",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
 
+    stdin.write("s"); // skip test-run
+    await tick();
     // "Keep in .xcli" is first option, press enter
     stdin.write("\r");
     await tick();
@@ -179,10 +532,14 @@ describe("ShareScreen", () => {
         sources,
         org: "meetsmore",
         userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
 
+    stdin.write("s"); // skip test-run
+    await tick();
     stdin.write("j");
     await tick();
     stdin.write("\r");
@@ -204,13 +561,17 @@ describe("ShareScreen", () => {
         sources,
         org: "meetsmore",
         userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
       }),
     );
 
-    // Select source
+    stdin.write("s"); // skip test-run
+    await tick();
+    // Select external source
     stdin.write("j");
     await tick();
     stdin.write("\r");
@@ -225,16 +586,21 @@ describe("ShareScreen", () => {
     });
   });
 
-  test("default path falls back to actions/ when no org or username", () => {
+  test("default path falls back to actions/ when no org or username", async () => {
     const actions = [makeAction()];
 
-    const { lastFrame } = render(
+    const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
+
+    stdin.write("s");
+    await tick();
 
     const output = stripAnsi(lastFrame() ?? "");
     expect(output).toContain("actions");
@@ -251,9 +617,14 @@ describe("ShareScreen", () => {
         sources,
         org: "meetsmore",
         userName: "alice",
+        cwd: "/tmp",
+        existingDirs: [],
         onDone: () => {},
       }),
     );
+
+    stdin.write("s"); // skip test-run
+    await tick();
 
     // Select "Keep in .xcli" to go to path picker
     stdin.write("\r");

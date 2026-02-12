@@ -1,5 +1,5 @@
 import { afterEach, describe, test } from "bun:test";
-import { type CLISession, fixturePath, spawnCLI } from "./harness";
+import { type CLISession, fixturePath, Keys, spawnCLI } from "./harness";
 
 describe("metadata parsing", () => {
   let cli: CLISession;
@@ -15,6 +15,9 @@ describe("metadata parsing", () => {
 
   test("displays name from // comment frontmatter in .ts files", async () => {
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    // Navigate into the database category to find categorized actions
+    await cli.waitForText("database");
+    cli.press(Keys.ENTER);
     await cli.waitForText("Reset Database");
   });
 
