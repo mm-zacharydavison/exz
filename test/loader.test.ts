@@ -30,17 +30,19 @@ describe("action discovery", () => {
   });
 
   test("assigns correct runtime for .ts files", async () => {
-    // Navigate into the database category to find categorized actions
+    // Navigate into the database category using search
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
     await cli.waitForText("database");
+    cli.type("/database");
     cli.press(Keys.ENTER);
     await cli.waitForText("Reset Database");
   });
 
   test("assigns correct runtime for .py files", async () => {
-    // Navigate into the database category to find categorized actions
+    // Navigate into the database category using search
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
     await cli.waitForText("database");
+    cli.type("/database");
     cli.press(Keys.ENTER);
     await cli.waitForText("Seed Data");
   });

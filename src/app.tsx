@@ -10,6 +10,49 @@ import { useNavigation } from "./hooks/useNavigation.ts";
 import { useSearch } from "./hooks/useSearch.ts";
 import type { Action, GenerationResult, MenuItem } from "./types.ts";
 
+function MenuList({
+  items,
+  selectedIndex,
+}: {
+  items: MenuItem[];
+  selectedIndex: number;
+}) {
+  const hasAnyNew = items.some((item) => item.isNew);
+
+  return (
+    <>
+      {items.map((item, i) => {
+        if (item.type === "separator") {
+          return (
+            <Box key={`sep-${item.value}`} marginTop={i > 0 ? 1 : 0}>
+              <Text dimColor bold>
+                {item.label}
+              </Text>
+            </Box>
+          );
+        }
+        const selected = i === selectedIndex;
+        return (
+          <Box key={`${i}-${item.value}`}>
+            <Text color={selected ? "cyan" : undefined}>
+              {selected ? "❯ " : "  "}
+            </Text>
+            {hasAnyNew && <Text>{item.isNew ? "✨ " : "   "}</Text>}
+            <Text color={selected ? "cyan" : undefined}>
+              {item.type === "category" ? "📁 " : ""}
+              {item.type === "action" && item.emoji ? `${item.emoji} ` : ""}
+              {item.label}
+              {item.type === "category" ? " ▸" : ""}
+            </Text>
+            {item.description && <Text dimColor> ({item.description})</Text>}
+            {item.source && <Text dimColor>{` ${item.source}`}</Text>}
+          </Box>
+        );
+      })}
+    </>
+  );
+}
+
 interface AppProps {
   cwd: string;
   xcliDir: string;
@@ -111,6 +154,16 @@ export function App({
     const menuItems = getMenuItems(actions, menuPath);
     const filteredItems = search.computeFiltered(menuItems, search.searchQuery);
 
+    // Skip past leading separator if selectedIndex lands on one
+    if (
+      filteredItems[search.selectedIndex]?.type === "separator" &&
+      search.selectedIndex === 0 &&
+      filteredItems.length > 1
+    ) {
+      search.setSelectedIndex(1);
+      search.selectedIndexRef.current = 1;
+    }
+
     return (
       <Box flexDirection="column">
         <Breadcrumbs path={menuPath} />
@@ -125,19 +178,10 @@ export function App({
         ) : filteredItems.length === 0 ? (
           <Text dimColor>No matching items</Text>
         ) : (
-          filteredItems.map((item, i) => (
-            <Box key={item.value}>
-              <Text color={i === search.selectedIndex ? "cyan" : undefined}>
-                {i === search.selectedIndex ? "❯ " : "  "}
-                {item.type === "category" ? "📁 " : ""}
-                {item.type === "action" && item.emoji ? `${item.emoji} ` : ""}
-                {item.label}
-                {item.type === "category" ? " ▸" : ""}
-              </Text>
-              {item.description && <Text dimColor> ({item.description})</Text>}
-              {item.source && <Text dimColor>{` ${item.source}`}</Text>}
-            </Box>
-          ))
+          <MenuList
+            items={filteredItems}
+            selectedIndex={search.selectedIndex}
+          />
         )}
         <StatusBar
           syncing={syncing}
@@ -180,9 +224,24 @@ export function App({
   return null;
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isRecentlyAdded(action: Action): boolean {
+  if (!action.addedAt) return false;
+  return Date.now() - action.addedAt < SEVEN_DAYS_MS;
+}
+
 export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
   const categories = new Set<string>();
   const items: MenuItem[] = [];
+  const newActionIds = new Set<string>();
+
+  // Build a set of recently-added action IDs for this menu level
+  for (const action of actions) {
+    if (isRecentlyAdded(action)) {
+      newActionIds.add(action.id);
+    }
+  }
 
   if (path.length === 0) {
     // Root level: show category folders and root-level actions only
@@ -206,6 +265,7 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
           value: action.id,
           source:
             action.source?.type !== "local" ? action.source?.label : undefined,
+          isNew: newActionIds.has(action.id),
         });
       }
     }
@@ -223,6 +283,7 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
           value: action.id,
           source:
             action.source?.type !== "local" ? action.source?.label : undefined,
+          isNew: newActionIds.has(action.id),
         });
       } else if (action.category.length > path.length) {
         const subCategory = action.category[path.length] as string;
@@ -247,6 +308,20 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
     if (aExternal !== bExternal) return aExternal - bExternal;
     return a.label.localeCompare(b.label);
   });
+
+  // Prepend "New" section only when there's a mix of new and non-new items
+  const newItems = items.filter((item) => item.isNew);
+  const hasNonNewItems = items.some(
+    (item) => item.type === "action" && !item.isNew,
+  );
+  if (newItems.length > 0 && hasNonNewItems) {
+    const newSection: MenuItem[] = [
+      { type: "separator", label: "New", value: "__sep_new" },
+      ...newItems,
+      { type: "separator", label: "───", value: "__sep_divider" },
+    ];
+    return [...newSection, ...items];
+  }
 
   return items;
 }

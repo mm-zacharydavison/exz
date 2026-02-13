@@ -39,12 +39,52 @@ function runtimeFromExtension(ext: string): Runtime {
   }
 }
 
+/**
+ * Batch-fetch the git commit timestamp when each file was first added,
+ * for all tracked files under `dir`. Returns a map of absolute path → epoch ms.
+ * Falls back gracefully to an empty map outside git repos.
+ */
+async function getGitAddedDates(dir: string): Promise<Map<string, number>> {
+  const dates = new Map<string, number>();
+  try {
+    const repoRoot = (
+      await Bun.$`git -C ${dir} rev-parse --show-toplevel`.quiet().text()
+    ).trim();
+
+    // --diff-filter=A: only commits where the file was Added
+    // --format=%at: unix epoch seconds
+    // --name-only: file paths relative to repo root
+    // Scoped to `dir` so we only scan action files
+    const output =
+      await Bun.$`git -C ${repoRoot} log --all --diff-filter=A --format=%at --name-only -- ${dir}`
+        .quiet()
+        .text();
+    let currentTimestamp = 0;
+    for (const line of output.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (/^\d+$/.test(trimmed)) {
+        currentTimestamp = Number.parseInt(trimmed, 10) * 1000;
+      } else {
+        const absPath = join(repoRoot, trimmed);
+        // git log outputs newest-first, so the last timestamp we see for a file
+        // is the oldest (when it was first added). Always overwrite.
+        dates.set(absPath, currentTimestamp);
+      }
+    }
+  } catch {
+    // Not a git repo or git not available — no dates
+  }
+  return dates;
+}
+
 export async function loadActions(
   actionsDir: string,
   source?: ActionSource,
 ): Promise<Action[]> {
   const actions: Action[] = [];
-  await scanDirectory(actionsDir, actionsDir, [], actions, 0, source);
+  const gitDates = await getGitAddedDates(actionsDir);
+  await scanDirectory(actionsDir, actionsDir, [], actions, 0, source, gitDates);
   actions.sort((a, b) => a.meta.name.localeCompare(b.meta.name));
   return actions;
 }
@@ -56,6 +96,7 @@ async function scanDirectory(
   actions: Action[],
   depth: number,
   source?: ActionSource,
+  gitDates?: Map<string, number>,
 ): Promise<void> {
   if (depth > 3) return;
 
@@ -79,6 +120,7 @@ async function scanDirectory(
         actions,
         depth + 1,
         source,
+        gitDates,
       );
     } else if (entry.isFile()) {
       const ext = `.${entry.name.split(".").pop()}`;
@@ -88,6 +130,7 @@ async function scanDirectory(
         extractMetadata(fullPath),
         readShebang(fullPath),
       ]);
+      const addedAt = gitDates?.get(fullPath);
       const idParts = [...category, entry.name.replace(/\.[^.]+$/, "")];
       const rawId = idParts.join("/");
       const id =
@@ -99,6 +142,7 @@ async function scanDirectory(
         filePath: fullPath,
         category,
         runtime: runtimeFromExtension(ext),
+        addedAt,
         ...(shebang ? { shebang } : {}),
         ...(source ? { source } : {}),
       });

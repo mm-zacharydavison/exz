@@ -15,8 +15,9 @@ describe("metadata parsing", () => {
 
   test("displays name from // comment frontmatter in .ts files", async () => {
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
-    // Navigate into the database category to find categorized actions
+    // Navigate into the database category using search
     await cli.waitForText("database");
+    cli.type("/database");
     cli.press(Keys.ENTER);
     await cli.waitForText("Reset Database");
   });

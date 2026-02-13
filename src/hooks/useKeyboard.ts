@@ -1,6 +1,23 @@
 import { useInput } from "ink";
 import type { Action, MenuItem, Screen } from "../types.ts";
 
+function nextSelectableIndex(
+  items: MenuItem[],
+  current: number,
+  direction: 1 | -1,
+): number {
+  let next = current + direction;
+  while (
+    next >= 0 &&
+    next < items.length &&
+    items[next]?.type === "separator"
+  ) {
+    next += direction;
+  }
+  if (next < 0 || next >= items.length) return current;
+  return next;
+}
+
 interface UseKeyboardOptions {
   stackRef: React.MutableRefObject<Screen[]>;
   actionsRef: React.MutableRefObject<Action[]>;
@@ -107,7 +124,13 @@ export function useKeyboard({
           return;
         }
         if (key.upArrow) {
-          const newIdx = Math.max(0, selectedIndexRef.current - 1);
+          const allItems = getMenuItems(actionsRef.current, screen.path);
+          const filtered = computeFiltered(allItems, searchQueryRef.current);
+          const newIdx = nextSelectableIndex(
+            filtered,
+            selectedIndexRef.current,
+            -1,
+          );
           selectedIndexRef.current = newIdx;
           setSelectedIndex(newIdx);
           return;
@@ -115,9 +138,10 @@ export function useKeyboard({
         if (key.downArrow) {
           const allItems = getMenuItems(actionsRef.current, screen.path);
           const filtered = computeFiltered(allItems, searchQueryRef.current);
-          const newIdx = Math.min(
-            filtered.length - 1,
-            selectedIndexRef.current + 1,
+          const newIdx = nextSelectableIndex(
+            filtered,
+            selectedIndexRef.current,
+            1,
           );
           selectedIndexRef.current = newIdx;
           setSelectedIndex(newIdx);
@@ -180,16 +204,22 @@ export function useKeyboard({
         return;
       }
       if (key.upArrow || input === "k") {
-        const newIdx = Math.max(0, selectedIndexRef.current - 1);
+        const allItems = getMenuItems(actionsRef.current, screen.path);
+        const newIdx = nextSelectableIndex(
+          allItems,
+          selectedIndexRef.current,
+          -1,
+        );
         selectedIndexRef.current = newIdx;
         setSelectedIndex(newIdx);
         return;
       }
       if (key.downArrow || input === "j") {
         const allItems = getMenuItems(actionsRef.current, screen.path);
-        const newIdx = Math.min(
-          allItems.length - 1,
-          selectedIndexRef.current + 1,
+        const newIdx = nextSelectableIndex(
+          allItems,
+          selectedIndexRef.current,
+          1,
         );
         selectedIndexRef.current = newIdx;
         setSelectedIndex(newIdx);
@@ -213,7 +243,7 @@ function selectCurrentItem(
   const allItems = getMenuItems(actionsRef.current, menuPath);
   const filtered = computeFiltered(allItems, searchQueryRef.current);
   const item = filtered[selectedIndexRef.current];
-  if (!item) return;
+  if (!item || item.type === "separator") return;
 
   if (item.type === "category") {
     pushScreen({ type: "menu", path: [...menuPath, item.value] });

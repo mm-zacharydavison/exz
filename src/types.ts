@@ -42,6 +42,8 @@ export interface Action {
   shebang?: string;
   /** Where this action was loaded from */
   source?: ActionSource;
+  /** Timestamp (ms) when this action file was created */
+  addedAt?: number;
 }
 
 /**
@@ -74,8 +76,8 @@ export interface ExecResult {
 }
 
 export interface MenuItem {
-  /** Whether this item represents an action or a navigable category */
-  type: "action" | "category";
+  /** Whether this item represents an action, navigable category, or section separator */
+  type: "action" | "category" | "separator";
   /** Display text for the menu item */
   label: string;
   /** Emoji prefix for action items */
@@ -86,6 +88,8 @@ export interface MenuItem {
   value: string;
   /** Dimmed source label for external actions */
   source?: string;
+  /** Whether this action was added within the past 7 days */
+  isNew?: boolean;
 }
 
 export interface NavigationState {
