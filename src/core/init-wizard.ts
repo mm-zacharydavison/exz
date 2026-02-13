@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { SourceConfig } from "../types.ts";
+import type { ShareConfig, SourceConfig } from "../types.ts";
 
 // ─── Dependency injection for testability ─────────────────────────
 
@@ -11,15 +11,31 @@ interface CmdResult {
 }
 
 export interface InitDeps {
-  ghApi: (endpoint: string) => Promise<CmdResult>;
+  ghApi: (
+    endpoint: string,
+    opts?: { method?: string; fields?: Record<string, string> },
+  ) => Promise<CmdResult>;
   ghRepoCreate: (repoName: string) => Promise<CmdResult>;
   bunWhich: (name: string) => string | null;
+  getGitUserName: () => Promise<string | null>;
 }
 
 export function defaultDeps(): InitDeps {
   return {
-    async ghApi(endpoint: string): Promise<CmdResult> {
-      const proc = Bun.spawn(["gh", "api", endpoint], {
+    async ghApi(
+      endpoint: string,
+      opts?: { method?: string; fields?: Record<string, string> },
+    ): Promise<CmdResult> {
+      const args = ["gh", "api", endpoint];
+      if (opts?.method) {
+        args.push("--method", opts.method);
+      }
+      if (opts?.fields) {
+        for (const [key, value] of Object.entries(opts.fields)) {
+          args.push("--field", `${key}=${value}`);
+        }
+      }
+      const proc = Bun.spawn(args, {
         stdout: "pipe",
         stderr: "pipe",
       });
@@ -53,27 +69,18 @@ export function defaultDeps(): InitDeps {
     bunWhich(name: string): string | null {
       return Bun.which(name);
     },
+    async getGitUserName(): Promise<string | null> {
+      try {
+        const name = await Bun.$`git config user.name`.quiet().text();
+        return name.trim() || null;
+      } catch {
+        return null;
+      }
+    },
   };
 }
 
-// ─── Detection utilities ──────────────────────────────────────────
-
-export async function detectXcliActionsRepo(
-  owner: string,
-  deps: InitDeps = defaultDeps(),
-): Promise<{ repo: string; defaultBranch: string } | null> {
-  try {
-    const result = await deps.ghApi(`repos/${owner}/xcli-actions`);
-    if (result.exitCode !== 0) return null;
-    const data = JSON.parse(result.stdout);
-    return {
-      repo: data.full_name,
-      defaultBranch: data.default_branch,
-    };
-  } catch {
-    return null;
-  }
-}
+// ─── Detection/API utilities ──────────────────────────────────────
 
 export async function detectAiCli(
   deps: InitDeps = defaultDeps(),
@@ -129,13 +136,107 @@ export async function createXcliActionsRepo(
   }
 }
 
+export interface MemberInfo {
+  login: string;
+}
+
+export interface OrgInfo {
+  login: string;
+}
+
+export async function fetchOrgs(
+  deps: InitDeps = defaultDeps(),
+): Promise<OrgInfo[]> {
+  try {
+    const result = await deps.ghApi("user/orgs");
+    if (result.exitCode !== 0) return [];
+    const data = JSON.parse(result.stdout);
+    if (!Array.isArray(data)) return [];
+    return data.map((o: { login: string }) => ({ login: o.login }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchGitHubUsername(
+  deps: InitDeps = defaultDeps(),
+): Promise<string | null> {
+  try {
+    const result = await deps.ghApi("user");
+    if (result.exitCode !== 0) return null;
+    const data = JSON.parse(result.stdout);
+    return data.login ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRepoCollaborators(
+  repo: string,
+  deps: InitDeps = defaultDeps(),
+): Promise<MemberInfo[]> {
+  try {
+    const result = await deps.ghApi(`repos/${repo}/collaborators`);
+    if (result.exitCode !== 0) return [];
+    const data = JSON.parse(result.stdout);
+    if (!Array.isArray(data)) return [];
+    return data.map((m: { login: string }) => ({ login: m.login }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchOrgMembers(
+  org: string,
+  deps: InitDeps = defaultDeps(),
+): Promise<MemberInfo[]> {
+  try {
+    const result = await deps.ghApi(`orgs/${org}/members`);
+    if (result.exitCode !== 0) return [];
+    const data = JSON.parse(result.stdout);
+    if (!Array.isArray(data)) return [];
+    return data.map((m: { login: string }) => ({ login: m.login }));
+  } catch {
+    return [];
+  }
+}
+
+export async function setupBranchProtection(
+  owner: string,
+  repo: string,
+  branch: string,
+  deps: InitDeps = defaultDeps(),
+): Promise<boolean> {
+  try {
+    const result = await deps.ghApi(
+      `repos/${owner}/${repo}/branches/${branch}/protection`,
+      {
+        method: "PUT",
+        fields: {
+          required_pull_request_reviews:
+            '{"required_approving_review_count":1}',
+        },
+      },
+    );
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Config file generation ───────────────────────────────────────
 
-export function generateConfigFile(options: {
+export interface GenerateConfigOptions {
   sources: SourceConfig[];
   aiEnabled: boolean;
-}): string {
-  const { sources, aiEnabled } = options;
+  share?: ShareConfig;
+  org?: string;
+  userName?: string;
+  autoNavigate?: string[];
+}
+
+export function generateConfigFile(options: GenerateConfigOptions): string {
+  const { sources, aiEnabled, share, org, userName, autoNavigate } = options;
   const activeLines: string[] = [];
   const commentedLines: string[] = [];
 
@@ -155,11 +256,34 @@ export function generateConfigFile(options: {
     commentedLines.push("  // sources: [],");
   }
 
+  // Share config
+  if (share && share.strategy !== "push") {
+    const shareParts: string[] = [`strategy: "${share.strategy}"`];
+    if (share.reviewer) {
+      shareParts.push(`reviewer: "${share.reviewer}"`);
+    }
+    activeLines.push(`  share: { ${shareParts.join(", ")} },`);
+  }
+
   // AI
   if (!aiEnabled) {
     activeLines.push("  ai: { enabled: false },");
   } else {
     commentedLines.push("  // ai: { enabled: true },");
+  }
+
+  // Identity
+  if (org) {
+    activeLines.push(`  org: "${org}",`);
+  }
+  if (userName) {
+    activeLines.push(`  userName: "${userName}",`);
+  }
+
+  // Auto-navigate
+  if (autoNavigate && autoNavigate.length > 0) {
+    const items = autoNavigate.map((p) => `"${p}"`).join(", ");
+    activeLines.push(`  autoNavigate: [${items}],`);
   }
 
   // Always-commented defaults
@@ -197,8 +321,7 @@ export interface WriteInitFilesResult {
 
 export async function writeInitFiles(
   cwd: string,
-  sources: SourceConfig[],
-  aiEnabled: boolean,
+  configOptions: GenerateConfigOptions,
 ): Promise<WriteInitFilesResult> {
   const xcliDir = join(cwd, ".xcli");
   const actionsDir = join(xcliDir, "actions");
@@ -224,7 +347,7 @@ echo "Add your own scripts to .xcli/actions/ to get started."
   }
 
   // Config file
-  const configContent = generateConfigFile({ sources, aiEnabled });
+  const configContent = generateConfigFile(configOptions);
   const configPath = join(xcliDir, "config.ts");
   await Bun.write(configPath, configContent);
 

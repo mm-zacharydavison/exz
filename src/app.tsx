@@ -15,10 +15,6 @@ interface AppProps {
   xcliDir: string;
   onRequestHandover?: () => void;
   generationResult?: GenerationResult;
-  /** GitHub org name from git remote (for share path default) */
-  org?: string;
-  /** Git user name (for share path default) */
-  userName?: string;
 }
 
 export function App({
@@ -26,8 +22,6 @@ export function App({
   xcliDir,
   onRequestHandover,
   generationResult,
-  org,
-  userName,
 }: AppProps) {
   const { exit } = useApp();
   const [showShareScreen, setShowShareScreen] = useState(
@@ -38,7 +32,6 @@ export function App({
   const nav = useNavigation({ onExit: exit, onNavigate: search.resetSearch });
   const { actions, actionsRef, config, loading, syncing } = useActions({
     xcliDir,
-    cwd,
     setStack: nav.setStack,
     stackRef: nav.stackRef,
   });
@@ -48,6 +41,7 @@ export function App({
   };
 
   const aiEnabled = config.ai?.enabled !== false;
+  const hasSources = (config.sources?.length ?? 0) > 0;
 
   useKeyboard({
     stackRef: nav.stackRef,
@@ -67,31 +61,47 @@ export function App({
     computeFiltered: search.computeFiltered,
     onRequestHandover,
     aiEnabled,
+    hasSources,
+    isActive: !showShareScreen && nav.currentScreen.type !== "share",
   });
 
   if (loading) {
     return <Text dimColor>Loading actions...</Text>;
   }
 
+  // Share screen from AI generation result
   if (showShareScreen && generationResult) {
-    const existingDirs = [
-      ...new Set(
-        actions
-          .filter((a) => a.category.length > 0)
-          .map((a) => a.category[0] as string),
-      ),
-    ];
-
     return (
       <ShareScreen
         newActions={generationResult.newActions}
         sources={config.sources ?? []}
-        org={org}
-        userName={userName}
         cwd={cwd}
         config={config}
-        existingDirs={existingDirs}
+        xcliDir={xcliDir}
         onDone={() => setShowShareScreen(false)}
+      />
+    );
+  }
+
+  // Share screen from menu 's' keybinding
+  if (nav.currentScreen.type === "share") {
+    const shareActions = nav.currentScreen.actionIds
+      .map((id) => actions.find((a) => a.id === id))
+      .filter((a): a is Action => a !== undefined);
+
+    if (shareActions.length === 0) {
+      nav.popScreen();
+      return null;
+    }
+
+    return (
+      <ShareScreen
+        newActions={shareActions}
+        sources={config.sources ?? []}
+        cwd={cwd}
+        config={config}
+        xcliDir={xcliDir}
+        onDone={() => nav.popScreen()}
       />
     );
   }
@@ -129,7 +139,11 @@ export function App({
             </Box>
           ))
         )}
-        <StatusBar syncing={syncing} aiEnabled={aiEnabled} />
+        <StatusBar
+          syncing={syncing}
+          aiEnabled={aiEnabled}
+          hasSources={hasSources}
+        />
       </Box>
     );
   }
@@ -157,7 +171,7 @@ export function App({
       <Box flexDirection="column">
         <ActionOutput action={action} cwd={cwd} config={config} />
         <Box marginTop={1}>
-          <Text dimColor>Press esc to go back</Text>
+          <Text dimColor>Press enter or esc to go back</Text>
         </Box>
       </Box>
     );

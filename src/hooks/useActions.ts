@@ -1,24 +1,17 @@
 import { join } from "node:path";
 import { useEffect, useRef, useState } from "react";
 import { loadConfig } from "../core/config.ts";
-import { detectRepoIdentity } from "../core/git-utils.ts";
 import { loadActions } from "../core/loader.ts";
 import { loadCachedSources, refreshSources } from "../core/sources.ts";
 import type { Action, Screen, XcliConfig } from "../types.ts";
 
 interface UseActionsOptions {
   xcliDir: string;
-  cwd: string;
   setStack: React.Dispatch<React.SetStateAction<Screen[]>>;
   stackRef: React.MutableRefObject<Screen[]>;
 }
 
-export function useActions({
-  xcliDir,
-  cwd,
-  setStack,
-  stackRef,
-}: UseActionsOptions) {
+export function useActions({ xcliDir, setStack, stackRef }: UseActionsOptions) {
   const [actions, setActions] = useState<Action[]>([]);
   const [config, setConfig] = useState<XcliConfig>({});
   const [loading, setLoading] = useState(true);
@@ -28,24 +21,23 @@ export function useActions({
   const autoNavigatedRef = useRef(false);
 
   useEffect(() => {
-    const autoNavigate = (actionsList: Action[]) => {
+    const autoNavigate = (actionsList: Action[], cfg: XcliConfig) => {
       if (autoNavigatedRef.current || actionsList.length === 0) return;
-      detectRepoIdentity(cwd).then((identity) => {
-        if (!identity || autoNavigatedRef.current) return;
-        const scopedPath = [`@${identity.org}`, identity.repo];
-        const hasMatch = actionsList.some((a) =>
-          scopedPath.every((p, i) => a.category[i] === p),
-        );
-        if (hasMatch) {
-          autoNavigatedRef.current = true;
-          const newStack: Screen[] = [
-            { type: "menu", path: [] },
-            { type: "menu", path: scopedPath },
-          ];
-          setStack(newStack);
-          stackRef.current = newStack;
-        }
-      });
+      if (!cfg.autoNavigate?.length) return;
+
+      const scopedPath = cfg.autoNavigate;
+      const hasMatch = actionsList.some((a) =>
+        scopedPath.every((p, i) => a.category[i] === p),
+      );
+      if (hasMatch) {
+        autoNavigatedRef.current = true;
+        const newStack: Screen[] = [
+          { type: "menu", path: [] },
+          { type: "menu", path: scopedPath },
+        ];
+        setStack(newStack);
+        stackRef.current = newStack;
+      }
     };
 
     (async () => {
@@ -67,8 +59,8 @@ export function useActions({
       setActions(allActions);
       setLoading(false);
 
-      // 3. Auto-navigate to scoped directory if repo matches
-      autoNavigate(allActions);
+      // 3. Auto-navigate to scoped directory from config
+      autoNavigate(allActions, cfg);
 
       // 4. Background refresh external sources
       if (cfg.sources?.length) {
@@ -78,13 +70,13 @@ export function useActions({
           setActions(merged);
           actionsRef.current = merged;
           setSyncing(false);
-          autoNavigate(merged);
+          autoNavigate(merged, cfg);
         }).catch(() => {
           setSyncing(false);
         });
       }
     })();
-  }, [xcliDir, cwd, setStack, stackRef]);
+  }, [xcliDir, setStack, stackRef]);
 
   return { actions, actionsRef, config, loading, syncing };
 }

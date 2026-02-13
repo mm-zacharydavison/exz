@@ -1,31 +1,40 @@
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { Box, Text, useInput } from "ink";
+import Spinner from "ink-spinner";
 import { useEffect, useRef, useState } from "react";
 import { runAction } from "../core/runner.ts";
+import { type ShareResult, shareToSource } from "../core/share.ts";
 import type { Action, SourceConfig, XcliConfig } from "../types.ts";
 
-type Step = "test-run" | "test-run-output" | "pick-source" | "pick-path";
+type Step =
+  | "test-run"
+  | "test-run-output"
+  | "pick-source"
+  | "pick-path"
+  | "sharing"
+  | "share-result";
 
 interface ShareScreenProps {
   newActions: Action[];
   sources: SourceConfig[];
-  org?: string;
-  userName?: string;
   cwd: string;
   config?: XcliConfig;
-  existingDirs: string[];
+  xcliDir?: string;
   onDone: (result?: { source?: SourceConfig; targetPath: string }) => void;
 }
 
 export function ShareScreen({
   newActions,
   sources,
-  org,
-  userName,
   cwd,
   config,
-  existingDirs,
+  xcliDir,
   onDone,
 }: ShareScreenProps) {
+  const org = config?.org;
+  const userName = config?.userName;
+
   const afterTestRun: Step = sources.length > 0 ? "pick-source" : "pick-path";
   const initialStep: Step = newActions.length > 0 ? "test-run" : afterTestRun;
 
@@ -48,6 +57,9 @@ export function ShareScreen({
   const testRunDoneRef = useRef(testRunDone);
   const [testRunExitCode, setTestRunExitCode] = useState<number | null>(null);
 
+  // Share result state
+  const [shareResult, setShareResult] = useState<ShareResult | null>(null);
+
   const defaultPath = buildDefaultPath(org, userName);
 
   const sourceOptions = [
@@ -55,6 +67,8 @@ export function ShareScreen({
     ...sources.map((s) => ({ label: `Push to ${s.repo}`, value: s.repo })),
   ];
 
+  // Get existing dirs from source repo cache instead of local categories
+  const existingDirs = getSourceRepoDirs(xcliDir, selectedSourceRef.current);
   const pathOptions = buildPathOptions(defaultPath, org, existingDirs);
 
   const updateStep = (s: Step) => {
@@ -102,6 +116,31 @@ export function ShareScreen({
 
   const startTestRun = () => {
     updateStep("test-run-output");
+  };
+
+  const doShare = (source: SourceConfig | undefined, targetPath: string) => {
+    if (!source || !xcliDir) {
+      onDone({ source, targetPath });
+      return;
+    }
+
+    updateStep("sharing");
+
+    const sourceRepoPath = getSourceRepoPath(xcliDir, source);
+    if (!sourceRepoPath) {
+      onDone({ source, targetPath });
+      return;
+    }
+
+    shareToSource({
+      actions: newActions,
+      sourceRepoPath,
+      targetPath,
+      share: config?.share,
+    }).then((result) => {
+      setShareResult(result);
+      updateStep("share-result");
+    });
   };
 
   // Run action only when user confirms (step = "test-run-output")
@@ -171,6 +210,17 @@ export function ShareScreen({
     const curStep = stepRef.current;
     const curIndex = selectedIndexRef.current;
 
+    // Share result: any key dismisses
+    if (curStep === "share-result") {
+      if (key.return || key.escape) {
+        onDone();
+      }
+      return;
+    }
+
+    // Sharing in progress: ignore input
+    if (curStep === "sharing") return;
+
     // Test-run prompt (before running)
     if (curStep === "test-run") {
       if (key.return) {
@@ -220,7 +270,7 @@ export function ShareScreen({
           const path = customPathRef.current.trim();
           if (path) {
             const source = selectedSourceRef.current;
-            onDone({ source: source ?? undefined, targetPath: path });
+            doShare(source ?? undefined, path);
           }
           return;
         }
@@ -244,10 +294,7 @@ export function ShareScreen({
         const selected = pathOptions[curIndex];
         if (selected) {
           const source = selectedSourceRef.current;
-          onDone({
-            source: source ?? undefined,
-            targetPath: selected.value,
-          });
+          doShare(source ?? undefined, selected.value);
         }
         return;
       }
@@ -364,6 +411,47 @@ export function ShareScreen({
                 : "Press enter to continue"
               : "Running... press s to skip"}
           </Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Sharing in progress
+  if (step === "sharing") {
+    return (
+      <Box flexDirection="column">
+        <Box>
+          <Text>
+            <Spinner type="dots" /> Sharing actions...
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Share result
+  if (step === "share-result" && shareResult) {
+    return (
+      <Box flexDirection="column">
+        {shareResult.status === "success" ? (
+          <Box flexDirection="column">
+            <Text color="green">✓ Actions shared successfully</Text>
+            {shareResult.prUrl && (
+              <Box marginTop={1}>
+                <Text>PR: {shareResult.prUrl}</Text>
+              </Box>
+            )}
+            {shareResult.branchName && !shareResult.prUrl && (
+              <Box marginTop={1}>
+                <Text>Branch: {shareResult.branchName}</Text>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Text color="red">✗ {shareResult.error ?? "Share failed"}</Text>
+        )}
+        <Box marginTop={1}>
+          <Text dimColor>Press enter or esc to continue</Text>
         </Box>
       </Box>
     );
@@ -490,4 +578,48 @@ function buildPathOptions(
   options.push({ label: "__custom__", value: "__custom__" });
 
   return options;
+}
+
+/**
+ * Get existing directories from the source repo's cached clone.
+ */
+function getSourceRepoDirs(
+  xcliDir?: string,
+  source?: SourceConfig | null,
+): string[] {
+  if (!xcliDir || !source) return [];
+  const repoPath = getSourceRepoPath(xcliDir, source);
+  if (!repoPath) return [];
+
+  try {
+    const actionsDir = join(repoPath, "actions");
+    const entries = readdirSync(actionsDir);
+    return entries.filter((e) => {
+      try {
+        return statSync(join(actionsDir, e)).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve the cached clone path for a source repo.
+ */
+function getSourceRepoPath(
+  xcliDir: string,
+  source: SourceConfig,
+): string | null {
+  const ref = source.ref ?? "main";
+  const cacheKey = `${source.repo.replace("/", "-")}-${ref}`;
+  const cachePath = join(xcliDir, ".cache", "sources", cacheKey);
+  try {
+    statSync(cachePath);
+    return cachePath;
+  } catch {
+    return null;
+  }
 }

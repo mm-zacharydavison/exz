@@ -101,7 +101,9 @@ export type Screen =
   /** Confirmation prompt before running an action */
   | { type: "confirm"; actionId: string }
   /** Transitional: signals cli.tsx to hand terminal control to an external process */
-  | { type: "handover" };
+  | { type: "handover" }
+  /** Share flow for pushing actions to a source repo */
+  | { type: "share"; actionIds: string[] };
 
 export interface SourceConfig {
   /** GitHub repo in "org/repo-name" format */
@@ -137,6 +139,13 @@ export interface GenerationResult {
   newActions: Action[];
 }
 
+export interface ShareConfig {
+  /** How changes are pushed to the target repo */
+  strategy: "push" | "branch" | "pr";
+  /** GitHub username for PR reviewer, only used when strategy = "pr" */
+  reviewer?: string;
+}
+
 export interface XcliConfig {
   /**
    * Subdirectory name under `.xcli/` containing actions
@@ -162,4 +171,12 @@ export interface XcliConfig {
      */
     enabled?: boolean;
   };
+  /** Share strategy configuration */
+  share?: ShareConfig;
+  /** GitHub org name, written during init */
+  org?: string;
+  /** Git user name, written during init */
+  userName?: string;
+  /** Category path to auto-navigate to on startup (e.g. ["@org", "repo"]) */
+  autoNavigate?: string[];
 }

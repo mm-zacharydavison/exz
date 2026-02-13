@@ -8,7 +8,6 @@ import { getDefaultProvider } from "./ai/provider.ts";
 import { App } from "./app.tsx";
 import { InitWizard } from "./components/InitWizard.tsx";
 import { loadConfig } from "./core/config.ts";
-import { detectRepoIdentity, getGitUserName } from "./core/git-utils.ts";
 import { defaultDeps, type InitResult } from "./core/init-wizard.ts";
 import { findXcliDir } from "./core/loader.ts";
 import type { GenerationResult } from "./types.ts";
@@ -28,7 +27,6 @@ if (!xcliDir) {
       React.createElement(InitWizard, {
         cwd,
         deps: defaultDeps(),
-        detectRepoIdentity,
         onDone: (result) => {
           instance.unmount();
           resolve(result);
@@ -38,6 +36,7 @@ if (!xcliDir) {
     );
   });
   xcliDir = initResult.xcliDir;
+  console.clear();
 }
 
 function createStdinStream(): NodeJS.ReadStream {
@@ -145,8 +144,6 @@ function renderInkApp(
   stdinStream: NodeJS.ReadStream,
   opts: {
     generationResult?: GenerationResult;
-    org?: string;
-    userName?: string;
   },
 ): Promise<RenderResult> {
   return new Promise((resolve) => {
@@ -165,8 +162,6 @@ function renderInkApp(
         xcliDir: xcliDir as string,
         onRequestHandover,
         generationResult: opts.generationResult,
-        org: opts.org,
-        userName: opts.userName,
       }),
       {
         stdin: stdinStream,
@@ -184,14 +179,7 @@ function renderInkApp(
   });
 }
 
-// Resolve git context once for the session
 const stdinStream = createStdinStream();
-const [repoIdentity, gitUserName] = await Promise.all([
-  detectRepoIdentity(cwd),
-  getGitUserName(),
-]);
-const org = repoIdentity?.org;
-const userName = gitUserName ?? undefined;
 
 // Main loop: alternate between Ink sessions and external process sessions
 let generationResult: GenerationResult | undefined;
@@ -199,8 +187,6 @@ let generationResult: GenerationResult | undefined;
 while (true) {
   const result = await renderInkApp(stdinStream, {
     generationResult,
-    org,
-    userName,
   });
   generationResult = undefined;
 
@@ -220,7 +206,14 @@ while (true) {
     const cfg = await loadConfig(xcliDir);
     const actionsDir = join(xcliDir, cfg.actionsDir ?? "actions");
 
+    // Pause stdin so the parent process doesn't compete with
+    // the child process for keystrokes on the shared fd.
+    process.stdin.pause();
+
     const newActions = await generate(provider, xcliDir, actionsDir);
+
+    // Resume stdin so Ink can read from it again.
+    process.stdin.resume();
 
     if (newActions.length > 0) {
       generationResult = { newActions };

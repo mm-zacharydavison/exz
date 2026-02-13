@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { shareToSource } from "../../src/ai/share.ts";
+import { shareToSource } from "../../src/core/share.ts";
 import type { Action } from "../../src/types.ts";
 
 function makeAction(overrides: Partial<Action> = {}): Action {
@@ -58,7 +58,7 @@ describe("shareToSource", () => {
     expect(files).toContain("actions/@myorg/alice/deploy.sh");
   });
 
-  test("commits directly on current branch", async () => {
+  test("commits directly on current branch (push strategy)", async () => {
     const actionFile = join(tempDir, "deploy.sh");
     await Bun.write(actionFile, "#!/bin/bash\necho deploy");
 
@@ -142,5 +142,85 @@ describe("shareToSource", () => {
 
     expect(result.status).toBe("error");
     expect(result.error).toBeDefined();
+  });
+
+  // ─── Branch strategy tests ───
+
+  test("branch strategy creates and pushes to xcli-actions branch", async () => {
+    const actionFile = join(tempDir, "deploy.sh");
+    await Bun.write(actionFile, "#!/bin/bash\necho deploy");
+
+    const action = makeAction({
+      id: "deploy",
+      meta: { name: "Deploy" },
+      filePath: actionFile,
+    });
+
+    const result = await shareToSource({
+      actions: [action],
+      sourceRepoPath: fakeRepoDir,
+      targetPath: "actions/@myorg/alice",
+      share: { strategy: "branch" },
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.branchName).toBe("xcli-actions");
+
+    const branch = await Bun.$`git -C ${fakeRepoDir} branch --show-current`
+      .quiet()
+      .text();
+    expect(branch.trim()).toBe("xcli-actions");
+  });
+
+  // ─── PR strategy tests ───
+
+  test("pr strategy creates a timestamped feature branch", async () => {
+    const actionFile = join(tempDir, "deploy.sh");
+    await Bun.write(actionFile, "#!/bin/bash\necho deploy");
+
+    const action = makeAction({
+      id: "deploy",
+      meta: { name: "Deploy" },
+      filePath: actionFile,
+    });
+
+    const result = await shareToSource({
+      actions: [action],
+      sourceRepoPath: fakeRepoDir,
+      targetPath: "actions/@myorg/alice",
+      share: { strategy: "pr" },
+    });
+
+    // PR creation will fail (no remote), but branch should exist
+    expect(result.branchName).toMatch(/^xcli\/add-actions-\d+$/);
+
+    const branch = await Bun.$`git -C ${fakeRepoDir} branch --show-current`
+      .quiet()
+      .text();
+    expect(branch.trim()).toMatch(/^xcli\/add-actions-\d+$/);
+  });
+
+  // ─── Default strategy (no share config) ───
+
+  test("defaults to push strategy when no share config", async () => {
+    const actionFile = join(tempDir, "hello.sh");
+    await Bun.write(actionFile, "#!/bin/bash\necho hello");
+
+    const action = makeAction({
+      id: "hello",
+      meta: { name: "Hello" },
+      filePath: actionFile,
+    });
+
+    const result = await shareToSource({
+      actions: [action],
+      sourceRepoPath: fakeRepoDir,
+      targetPath: "actions",
+      share: undefined,
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.branchName).toBeUndefined();
+    expect(result.prUrl).toBeUndefined();
   });
 });

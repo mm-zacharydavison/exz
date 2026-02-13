@@ -3,12 +3,19 @@ import { Box, Text } from "ink";
 interface StatusBarProps {
   syncing?: boolean;
   aiEnabled?: boolean;
+  hasSources?: boolean;
 }
 
-export function StatusBar({ syncing, aiEnabled = true }: StatusBarProps) {
-  const hints = aiEnabled
-    ? "↑↓/j/k navigate  / search  n new (🤖)  esc back  q quit"
-    : "↑↓/j/k navigate  / search  esc back  q quit";
+export function StatusBar({
+  syncing,
+  aiEnabled = true,
+  hasSources = false,
+}: StatusBarProps) {
+  const parts = ["↑↓/j/k navigate", "/ search"];
+  if (hasSources) parts.push("s share");
+  if (aiEnabled) parts.push("n new (🤖)");
+  parts.push("esc back", "q quit");
+  const hints = parts.join("  ");
 
   return (
     <Box marginTop={1} flexDirection="column">

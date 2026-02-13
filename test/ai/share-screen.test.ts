@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { render } from "ink-testing-library";
 import React from "react";
 import { ShareScreen } from "../../src/components/ShareScreen.tsx";
-import type { Action, SourceConfig } from "../../src/types.ts";
+import type { Action, SourceConfig, XcliConfig } from "../../src/types.ts";
 import { stripAnsi } from "../harness.ts";
 
 function makeAction(overrides: Partial<Action> = {}): Action {
@@ -29,7 +29,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -48,7 +47,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -69,7 +67,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -89,7 +86,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -113,7 +109,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -135,7 +130,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -145,19 +139,18 @@ describe("ShareScreen", () => {
     expect(output).toContain("(Deploy to staging)");
   });
 
-  // --- existing directory options ---
+  // --- org/userName from config ---
 
-  test("shows existing directories as path options", async () => {
+  test("reads org and userName from config for default path", async () => {
     const actions = [makeAction()];
+    const config: XcliConfig = { org: "acme", userName: "alice" };
 
     const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
-        org: "acme",
-        userName: "alice",
         cwd: "/tmp",
-        existingDirs: ["deploy", "database"],
+        config,
         onDone: () => {},
       }),
     );
@@ -167,9 +160,6 @@ describe("ShareScreen", () => {
 
     const output = stripAnsi(lastFrame() ?? "");
     expect(output).toContain("actions/@acme/alice");
-    expect(output).toContain("actions/");
-    expect(output).toContain("actions/deploy/");
-    expect(output).toContain("actions/database/");
   });
 
   // --- inline custom path field ---
@@ -182,7 +172,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -202,7 +191,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -232,7 +220,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
@@ -267,7 +254,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -298,7 +284,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -307,21 +292,21 @@ describe("ShareScreen", () => {
     await tick();
 
     const output = stripAnsi(lastFrame() ?? "");
-    expect(output).toContain("actions/");
+    expect(output).toContain("actions");
     expect(output).not.toContain("@");
   });
 
   test("userName without org defaults to actions/", async () => {
     let doneResult: unknown;
     const actions = [makeAction()];
+    const config: XcliConfig = { userName: "alice" };
 
     const { stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
@@ -363,7 +348,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -378,15 +362,14 @@ describe("ShareScreen", () => {
 
   test("shows path picker after skipping test-run (no sources)", async () => {
     const actions = [makeAction()];
+    const config: XcliConfig = { org: "acme", userName: "alice" };
 
     const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
-        org: "acme",
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -408,7 +391,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -431,7 +413,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {
           doneCalled = true;
         },
@@ -454,7 +435,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {
           doneCalled = true;
         },
@@ -470,15 +450,14 @@ describe("ShareScreen", () => {
   test("confirming default path (no sources) returns path without source", async () => {
     let doneResult: unknown;
     const actions = [makeAction()];
+    const config: XcliConfig = { org: "acme", userName: "alice" };
 
     const { stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources: [],
-        org: "acme",
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
@@ -498,15 +477,14 @@ describe("ShareScreen", () => {
   test("'Keep in .xcli' goes to path picker", async () => {
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
+    const config: XcliConfig = { org: "acme", userName: "bob" };
 
     const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
-        org: "acme",
-        userName: "bob",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -525,15 +503,14 @@ describe("ShareScreen", () => {
   test("selecting external source goes to path picker", async () => {
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
+    const config: XcliConfig = { org: "meetsmore", userName: "alice" };
 
     const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
-        org: "meetsmore",
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -554,15 +531,14 @@ describe("ShareScreen", () => {
     let doneResult: unknown;
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
+    const config: XcliConfig = { org: "meetsmore", userName: "alice" };
 
     const { stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
-        org: "meetsmore",
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: (result) => {
           doneResult = result;
         },
@@ -594,7 +570,6 @@ describe("ShareScreen", () => {
         newActions: actions,
         sources: [],
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
@@ -610,15 +585,14 @@ describe("ShareScreen", () => {
   test("esc from path picker goes back to source picker", async () => {
     const actions = [makeAction()];
     const sources: SourceConfig[] = [{ repo: "myorg/shared-ops" }];
+    const config: XcliConfig = { org: "meetsmore", userName: "alice" };
 
     const { lastFrame, stdin } = render(
       React.createElement(ShareScreen, {
         newActions: actions,
         sources,
-        org: "meetsmore",
-        userName: "alice",
+        config,
         cwd: "/tmp",
-        existingDirs: [],
         onDone: () => {},
       }),
     );
