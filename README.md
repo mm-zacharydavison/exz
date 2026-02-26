@@ -10,6 +10,8 @@ A terminal UI for discovering and running project scripts. Drop scripts into `.k
 
 ```bash
 bunx kadai
+# OR
+npx kadai
 ```
 
 On first run, kadai creates a `.kadai/` directory with a sample action and config file. Run it again to open the interactive menu.
