@@ -1,12 +1,10 @@
-<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/daa548e6-5984-4cde-93d3-7c4684de639a" />
+<img width="919" height="228" alt="image" src="https://github.com/user-attachments/assets/2c1fca9f-3484-409f-b3b4-214edc0387a4" />
 
 # kadai
 
 A terminal UI for discovering and running project scripts. Drop scripts into `.kadai/actions/`, and kadai gives you a fuzzy-searchable menu to run them.
 
 ## Getting Started
-
-<img width="919" height="228" alt="image" src="https://github.com/user-attachments/assets/b25dca2a-8d54-4191-aa2b-7df9a4950af0" />
 
 ```bash
 bunx kadai
