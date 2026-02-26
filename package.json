@@ -1,5 +1,5 @@
 {
-  "name": "xcli",
+  "name": "@zdavison/xcli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
