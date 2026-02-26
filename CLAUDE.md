@@ -18,25 +18,25 @@ bun src/cli.tsx          # Run the CLI locally
 
 ## What This Project Is
 
-xcli is an interactive terminal tool for discovering and running shell scripts stored in `.xcli/actions/`. It provides a menu-driven UI with fuzzy search and supports multiple script runtimes (bash, TypeScript, Python, JS). Actions are local-only — no external sources, no AI generation.
+zcli is an interactive terminal tool for discovering and running shell scripts stored in `.zcli/actions/`. It provides a menu-driven UI with fuzzy search and supports multiple script runtimes (bash, TypeScript, Python, JS). Actions are local-only — no external sources, no AI generation.
 
 ## Architecture
 
-**Entry point**: `src/cli.tsx` — finds `.xcli` dir (searching upward from cwd), runs init wizard if missing, then renders the Ink app and exits when done.
+**Entry point**: `src/cli.tsx` — finds `.zcli` dir (searching upward from cwd), runs init wizard if missing, then renders the Ink app and exits when done.
 
 **Core modules** (`src/core/`):
-- `loader.ts` — Recursively scans `.xcli/actions/` for scripts (up to 4 levels deep), extracts metadata, builds action list. Also fetches git-based "added at" timestamps for the "New" indicator.
+- `loader.ts` — Recursively scans `.zcli/actions/` for scripts (up to 4 levels deep), extracts metadata, builds action list. Also fetches git-based "added at" timestamps for the "New" indicator.
 - `runner.ts` — Executes actions via `Bun.spawn()` with three-tier command resolution: shebang → runtime chain → fallback. Injects config env vars.
-- `config.ts` — Loads `.xcli/config.ts` (`actionsDir`, `env`)
-- `metadata.ts` — Parses comment frontmatter (`# xcli:name`, `// xcli:emoji`, etc.) from the first 20 lines. Falls back to inferring name from filename.
-- `init-wizard.ts` — Creates `.xcli/actions/` dir, sample action, and config file.
+- `config.ts` — Loads `.zcli/config.ts` (`actionsDir`, `env`)
+- `metadata.ts` — Parses comment frontmatter (`# zcli:name`, `// zcli:emoji`, etc.) from the first 20 lines. Falls back to inferring name from filename.
+- `init-wizard.ts` — Creates `.zcli/actions/` dir, sample action, and config file.
 
 **UI layer** (`src/app.tsx` + `src/components/` + `src/hooks/`):
 - React/Ink terminal app with screen stack navigation (menu → confirm → output)
 - Hooks: `useActions` (load actions), `useNavigation` (screen stack), `useSearch` (fuzzy search via fuzzysort), `useKeyboard` (input handling)
 - `buildMenuItems()` in `app.tsx` builds the hierarchical menu with categories, sorting, and "New" section
 
-**Types**: `src/types.ts` — All shared interfaces (`Action`, `ActionMeta`, `MenuItem`, `Screen`, `XcliConfig`, `Runtime`)
+**Types**: `src/types.ts` — All shared interfaces (`Action`, `ActionMeta`, `MenuItem`, `Screen`, `ZcliConfig`, `Runtime`)
 
 ## Testing
 

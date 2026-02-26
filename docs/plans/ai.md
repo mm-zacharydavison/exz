@@ -2,7 +2,7 @@
 
 ## Context
 
-xcli currently lets users browse and run scripts from `.xcli/actions/`. This plan adds AI-powered script generation: the user presses `n` from the menu, xcli spawns an interactive Claude Code session with context about xcli conventions, and the user describes what they want. When the Claude session ends, xcli detects any new files created in `.xcli/actions/`, and offers to share them to configured external sources.
+zcli currently lets users browse and run scripts from `.zcli/actions/`. This plan adds AI-powered script generation: the user presses `n` from the menu, zcli spawns an interactive Claude Code session with context about zcli conventions, and the user describes what they want. When the Claude session ends, zcli detects any new files created in `.zcli/actions/`, and offers to share them to configured external sources.
 
 The generation method is **local Claude Code** (`claude` CLI), so users on Max plans get generation at no extra API cost. The `claude` CLI is invoked as an interactive subprocess with `stdio: "inherit"` — the user gets a full Claude Code experience, not a stripped-down wrapper.
 
@@ -11,15 +11,15 @@ The generation method is **local Claude Code** (`claude` CLI), so users on Max p
 ## User Flow
 
 ```
-1. User is in the xcli menu
+1. User is in the zcli menu
 2. Presses 'n' (shown in StatusBar as a hint)
-3. xcli takes a snapshot of .xcli/actions/ (list of existing files)
+3. zcli takes a snapshot of .zcli/actions/ (list of existing files)
 4. Ink unmounts, terminal control passes to Claude Code
-5. Claude opens with an appended system prompt containing xcli conventions
-   and an initial prompt introducing itself as an xcli action generator
+5. Claude opens with an appended system prompt containing zcli conventions
+   and an initial prompt introducing itself as an zcli action generator
 6. User describes what they want, interacts with Claude normally
 7. User exits Claude (Ctrl+C, /exit, or 'q')
-8. xcli diffs .xcli/actions/ against the snapshot to find new files
+8. zcli diffs .zcli/actions/ against the snapshot to find new files
 9. Ink re-mounts:
    a. If no new files: flash "No new actions created" → return to menu
    b. If new files found: push a ShareScreen showing new actions with sharing options
@@ -54,7 +54,7 @@ while (true) {
   if (result === "exit") break
   if (result === "spawn-claude") {
     const snapshot = await snapshotActions(actionsDir)
-    await spawnClaude(xcliDir, actionsDir, snapshot)
+    await spawnClaude(zcliDir, actionsDir, snapshot)
     const newFiles = await diffActions(actionsDir, snapshot)
     // Next Ink render starts on ShareScreen if newFiles.length > 0
   }
@@ -63,7 +63,7 @@ while (true) {
 
 ### AI provider abstraction
 
-Generation is modeled as a pluggable **provider** so xcli can support different backends in the future (e.g. Codex CLI, opening ChatGPT on the web). Each provider implements a common interface:
+Generation is modeled as a pluggable **provider** so zcli can support different backends in the future (e.g. Codex CLI, opening ChatGPT on the web). Each provider implements a common interface:
 
 ```ts
 export interface AIProvider {
@@ -73,7 +73,7 @@ export interface AIProvider {
   /** Whether this provider needs Ink to unmount (terminal-based providers do, web-based don't) */
   requiresUnmount: boolean;
   /** Spawn the generation session. Resolves when the session ends. */
-  spawn(opts: { xcliDir: string; actionsDir: string; systemPrompt: string }): Promise<void>;
+  spawn(opts: { zcliDir: string; actionsDir: string; systemPrompt: string }): Promise<void>;
 }
 ```
 
@@ -81,12 +81,12 @@ The initial (and only) provider is `ClaudeCodeProvider`, which spawns the `claud
 
 ```sh
 claude \
-  --append-system-prompt "<xcli conventions>" \
-  "I'm ready to create a new xcli action. Describe what you'd like the script to do."
+  --append-system-prompt "<zcli conventions>" \
+  "I'm ready to create a new zcli action. Describe what you'd like the script to do."
 ```
 
 Flags used:
-- `--append-system-prompt`: Injects xcli-specific instructions without replacing Claude's default system prompt
+- `--append-system-prompt`: Injects zcli-specific instructions without replacing Claude's default system prompt
 - Positional `prompt` argument: Prefills the conversation with an opening message so the user knows what to do
 
 The process is spawned with `Bun.spawn(cmd, { stdio: ["inherit", "inherit", "inherit"] })` to give Claude full terminal access (raw mode, colors, Ink rendering, etc).
@@ -95,12 +95,12 @@ The `requiresUnmount` flag lets `cli.tsx` decide whether to unmount Ink before s
 
 ### System prompt content
 
-The appended system prompt tells Claude how to write xcli actions. It includes:
+The appended system prompt tells Claude how to write zcli actions. It includes:
 
-1. **Directory convention**: Where to place files (`.xcli/actions/`, categories as subdirectories)
-2. **Metadata format**: Comment frontmatter (`# xcli:name`, `# xcli:emoji`, etc.)
+1. **Directory convention**: Where to place files (`.zcli/actions/`, categories as subdirectories)
+2. **Metadata format**: Comment frontmatter (`# zcli:name`, `# zcli:emoji`, etc.)
 3. **Supported languages**: `.sh`, `.ts`, `.py`, `.js`, `.mjs` with their runtimes
-4. **Current repo context**: The absolute path to `.xcli/actions/`, and a listing of existing actions (so Claude can see what's already there and avoid conflicts)
+4. **Current repo context**: The absolute path to `.zcli/actions/`, and a listing of existing actions (so Claude can see what's already there and avoid conflicts)
 5. **Best practices**: Use shebangs, set -euo pipefail for bash, keep scripts self-contained
 
 The prompt is built dynamically at generation time by `src/ai/prompt.ts` so it reflects the current state of the repo.
@@ -113,7 +113,7 @@ Before spawning Claude, take a snapshot:
 type Snapshot = Map<string, number>  // filePath → mtime (ms)
 ```
 
-After Claude exits, scan `.xcli/actions/` again. New files = paths present in the new scan but absent from the snapshot. Modified files = paths where mtime changed. Both are surfaced to the user.
+After Claude exits, scan `.zcli/actions/` again. New files = paths present in the new scan but absent from the snapshot. Modified files = paths where mtime changed. Both are surfaced to the user.
 
 ### ShareScreen
 
@@ -122,18 +122,18 @@ A new screen type shown after Claude exits (if new files were detected). Display
 ```
 New actions created:
 
-  ✦ Deploy to Staging  (.xcli/actions/deploy/staging.sh)
-  ✦ Reset Cache        (.xcli/actions/reset-cache.ts)
+  ✦ Deploy to Staging  (.zcli/actions/deploy/staging.sh)
+  ✦ Reset Cache        (.zcli/actions/reset-cache.ts)
 
 Share to:
-  ❯ Keep in .xcli
-    Push to meetsmore/xcli-scripts
+  ❯ Keep in .zcli
+    Push to meetsmore/zcli-scripts
     Push to myorg/shared-ops
 
 Press enter to confirm, esc to skip sharing
 ```
 
-The sharing destinations come from the `sources` array in `.xcli/config.ts` (Goal 2 infrastructure). If no sources are configured, the share step is skipped entirely — the user just sees a confirmation that new actions were created and returns to the menu.
+The sharing destinations come from the `sources` array in `.zcli/config.ts` (Goal 2 infrastructure). If no sources are configured, the share step is skipped entirely — the user just sees a confirmation that new actions were created and returns to the menu.
 
 ### Pushing to a source
 
@@ -144,12 +144,12 @@ When the user selects an external source:
    - Detect current repo identity via `git-utils.ts` → `@org/repo/` scoping
    - If no identity detected, place in root `actions/`
 3. Copy the new action file(s) into the target path
-4. Create a branch: `xcli/add-{action-id}-{timestamp}`
+4. Create a branch: `zcli/add-{action-id}-{timestamp}`
 5. Commit with message: `Add {action name} action`
 6. Push the branch
 7. Open a PR via `gh pr create` (if `gh` is available) or print the push URL
 
-This reuses the `GitFetcher` infrastructure from Goal 2. If Goal 2 isn't implemented yet, the share-to-source feature is disabled (grayed out in the UI with a "configure sources in .xcli/config.ts" hint).
+This reuses the `GitFetcher` infrastructure from Goal 2. If Goal 2 isn't implemented yet, the share-to-source feature is disabled (grayed out in the UI with a "configure sources in .zcli/config.ts" hint).
 
 ---
 
@@ -161,12 +161,12 @@ Builds the `--append-system-prompt` string dynamically:
 
 ```ts
 export async function buildSystemPrompt(
-  xcliDir: string,
+  zcliDir: string,
   actionsDir: string,
 ): Promise<string>
 ```
 
-Reads the current actions directory listing and embeds it in the prompt alongside static xcli conventions documentation.
+Reads the current actions directory listing and embeds it in the prompt alongside static zcli conventions documentation.
 
 ### `src/ai/provider.ts` — AI provider interface and Claude implementation
 
@@ -180,7 +180,7 @@ Defines the `AIProvider` interface and exports the `ClaudeCodeProvider`:
 Responsibilities:
 - `snapshotActions(actionsDir)` → `Map<string, number>` (path → mtime)
 - `detectNewActions(actionsDir, snapshot)` → `Action[]` (newly created or modified actions, parsed with loader)
-- `generate(provider, xcliDir, actionsDir)` → orchestrates: build prompt → spawn provider → detect new actions
+- `generate(provider, zcliDir, actionsDir)` → orchestrates: build prompt → spawn provider → detect new actions
 
 ### `src/ai/share.ts` — Sharing to external sources
 
@@ -244,11 +244,11 @@ No changes to `loadActions` itself, but the `snapshotActions` / `detectNewAction
 
 | Test                                     | Input                                      | Expected                                             |
 | ---------------------------------------- | ------------------------------------------ | ---------------------------------------------------- |
-| Includes xcli metadata format docs       | Any actionsDir                             | Prompt contains `xcli:name`, `xcli:emoji` examples   |
+| Includes zcli metadata format docs       | Any actionsDir                             | Prompt contains `zcli:name`, `zcli:emoji` examples   |
 | Includes supported extensions            | Any actionsDir                             | Prompt mentions `.sh`, `.ts`, `.py`                  |
 | Lists existing actions                   | actionsDir with `hello.sh`, `db/reset.ts`  | Prompt contains both filenames                       |
 | Handles empty actions directory          | Empty actionsDir                           | Prompt says "no existing actions"                    |
-| Includes the absolute actions dir path   | `/home/user/project/.xcli/actions`         | Prompt contains that path                            |
+| Includes the absolute actions dir path   | `/home/user/project/.zcli/actions`         | Prompt contains that path                            |
 
 **Implement** `src/ai/prompt.ts`
 
@@ -290,9 +290,9 @@ No changes to `loadActions` itself, but the `snapshotActions` / `detectNewAction
 - Pass `generationResult` to App on re-mount
 
 **Integration test** (`test/ai/integration.test.ts`):
-- Mock `claude` CLI with a script that creates a file in `.xcli/actions/`
-- Verify xcli detects the new file after the mock exits
-- Verify xcli re-renders with the new action in the menu
+- Mock `claude` CLI with a script that creates a file in `.zcli/actions/`
+- Verify zcli detects the new file after the mock exits
+- Verify zcli re-renders with the new action in the menu
 
 ### Step 5: ShareScreen component
 
@@ -301,11 +301,11 @@ No changes to `loadActions` itself, but the `snapshotActions` / `detectNewAction
 | Test                                       | Setup                                         | Expected                                        |
 | ------------------------------------------ | --------------------------------------------- | ----------------------------------------------- |
 | Shows list of new actions                  | 2 new actions passed as props                 | Both action names visible                       |
-| Shows "Keep in .xcli" option               | Any new actions                               | "Keep in .xcli" option visible                  |
+| Shows "Keep in .zcli" option               | Any new actions                               | "Keep in .zcli" option visible                  |
 | Shows configured sources as options        | Config with 2 sources                         | Both source repos listed                        |
-| Hides source options when no sources       | Config with no sources                        | Only "Keep in .xcli" shown, no picker           |
+| Hides source options when no sources       | Config with no sources                        | Only "Keep in .zcli" shown, no picker           |
 | ESC returns to menu                        | Any state                                     | Calls onDone callback                           |
-| Enter on "Keep in .xcli" returns to menu   | Select "Keep in .xcli"                        | Calls onDone without sharing                    |
+| Enter on "Keep in .zcli" returns to menu   | Select "Keep in .zcli"                        | Calls onDone without sharing                    |
 
 **Implement** `src/components/ShareScreen.tsx`
 
@@ -317,7 +317,7 @@ No changes to `loadActions` itself, but the `snapshotActions` / `detectNewAction
 | ------------------------------------------ | --------------------------------------------- | ----------------------------------------------- |
 | Clones source repo to temp dir             | Mock git, valid source config                 | `git clone --depth 1` called with correct args  |
 | Copies action files to correct path        | New action + repo identity                    | File exists at `@org/repo/action.sh` in clone   |
-| Creates branch with expected name          | New action named "deploy"                     | Branch name starts with `xcli/add-deploy-`      |
+| Creates branch with expected name          | New action named "deploy"                     | Branch name starts with `zcli/add-deploy-`      |
 | Commits with descriptive message           | New action named "Deploy to Staging"          | Commit message contains action name             |
 | Pushes branch to origin                    | Successful clone + commit                     | `git push` called                               |
 | Falls back to root when no repo identity   | No git remote detected                        | File placed in `actions/` root of source        |
@@ -380,12 +380,12 @@ No changes to `loadActions` itself, but the `snapshotActions` / `detectNewAction
 ## Verification
 
 1. Install Claude CLI locally, ensure `which claude` resolves
-2. Run `bun src/cli.tsx` in a repo with `.xcli/actions/`
-3. Press `n` → Claude opens with xcli context in the system prompt
+2. Run `bun src/cli.tsx` in a repo with `.zcli/actions/`
+3. Press `n` → Claude opens with zcli context in the system prompt
 4. Tell Claude to create a bash script that lists Docker containers
-5. Verify Claude creates the file in `.xcli/actions/`
-6. Exit Claude → xcli shows ShareScreen with the new action
-7. Select "Keep in .xcli" → returns to menu, new action visible
+5. Verify Claude creates the file in `.zcli/actions/`
+6. Exit Claude → zcli shows ShareScreen with the new action
+7. Select "Keep in .zcli" → returns to menu, new action visible
 8. Run `bun test` — all tests pass
 9. Test with no `claude` CLI installed → error message shown
 10. Test with external sources configured → share picker shows sources

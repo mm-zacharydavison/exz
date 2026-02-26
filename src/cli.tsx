@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from "./core/args.ts";
 import { handleList, handleRun } from "./core/commands.ts";
-import { findXcliDir } from "./core/loader.ts";
+import { findZcliDir } from "./core/loader.ts";
 
 const cwd = process.cwd();
 const parsed = parseArgs(process.argv.slice(2));
@@ -12,17 +12,17 @@ if (parsed.type === "error") {
 }
 
 if (parsed.type === "list" || parsed.type === "run") {
-  const xcliDir = findXcliDir(cwd);
-  if (!xcliDir) {
+  const zcliDir = findZcliDir(cwd);
+  if (!zcliDir) {
     process.stderr.write(
-      "Error: No .xcli directory found. Run xcli to initialize.\n",
+      "Error: No .zcli directory found. Run zcli to initialize.\n",
     );
     process.exit(1);
   }
   if (parsed.type === "list") {
-    await handleList({ xcliDir, all: parsed.all });
+    await handleList({ zcliDir, all: parsed.all });
   } else {
-    await handleRun({ xcliDir, actionId: parsed.actionId, cwd });
+    await handleRun({ zcliDir, actionId: parsed.actionId, cwd });
   }
 }
 
@@ -36,22 +36,22 @@ const { loadConfig } = await import("./core/config.ts");
 
 import type { Action } from "./types.ts";
 
-const xcliDir = findXcliDir(cwd);
-if (!xcliDir) {
+const zcliDir = findZcliDir(cwd);
+if (!zcliDir) {
   if (!process.stdin.isTTY) {
     process.stderr.write(
-      "Error: No .xcli directory found. Create a .xcli/actions/ directory to get started.\n",
+      "Error: No .zcli directory found. Create a .zcli/actions/ directory to get started.\n",
     );
     process.exit(1);
   }
   const { writeInitFiles } = await import("./core/init-wizard.ts");
-  console.log("No .xcli directory found. Setting one up.\n");
+  console.log("No .zcli directory found. Setting one up.\n");
   const result = await writeInitFiles(cwd);
-  console.log("  Created .xcli/config.ts");
-  if (result.sampleCreated) console.log("  Created .xcli/actions/hello.sh");
+  console.log("  Created .zcli/config.ts");
+  if (result.sampleCreated) console.log("  Created .zcli/actions/hello.sh");
   if (result.skillCreated)
-    console.log("  Created .claude/skills/xcli/SKILL.md");
-  console.log("\nDone! Run xcli again to get started.");
+    console.log("  Created .claude/skills/zcli/SKILL.md");
+  console.log("\nDone! Run zcli again to get started.");
   process.exit(0);
 }
 
@@ -164,7 +164,7 @@ while (true) {
   const instance = render(
     React.createElement(App, {
       cwd,
-      xcliDir,
+      zcliDir,
       onRunInteractive: (action: Action) => {
         pendingInteractiveAction = action;
       },
@@ -183,7 +183,7 @@ while (true) {
   // Run the interactive action with full stdio passthrough
   // TS narrows to `never` after the break because it can't see the callback mutation
   const action: Action = pendingInteractiveAction;
-  const config = await loadConfig(xcliDir);
+  const config = await loadConfig(zcliDir);
   const cmd = resolveCommand(action);
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),

@@ -2,10 +2,10 @@
 
 ## Problem
 
-`userName` in `.xcli/config.ts` has two issues:
+`userName` in `.zcli/config.ts` has two issues:
 
 1. **It's a real name, not a username.** It comes from `git config user.name` (e.g. `"Zachary Davison"`), which produces paths with spaces like `actions/@meetsmore/Zachary Davison`.
-2. **It's baked into committed config.** In a shared repo, every collaborator gets the same person's name — whoever ran `xcli init`.
+2. **It's baked into committed config.** In a shared repo, every collaborator gets the same person's name — whoever ran `zcli init`.
 
 ## Current usage
 
@@ -60,7 +60,7 @@ Replace `config?.userName` with a runtime-fetched GitHub username:
 - Remove the `getGitUserName()` call and `userNameRef`
 - Stop passing `userName` to `generateConfigFile()`
 
-#### 5. `src/types.ts` — Deprecate `userName` on `XcliConfig`
+#### 5. `src/types.ts` — Deprecate `userName` on `ZcliConfig`
 
 - Keep the field for backwards compatibility (old configs still have it)
 - Update the doc comment to mark it as deprecated
@@ -73,8 +73,8 @@ Replace `config?.userName` with a runtime-fetched GitHub username:
 
 ## Migration
 
-- Existing `.xcli/config.ts` files with `userName` continue to work as a fallback
-- New `xcli init` runs no longer write `userName`
+- Existing `.zcli/config.ts` files with `userName` continue to work as a fallback
+- New `zcli init` runs no longer write `userName`
 - The runtime GitHub username takes priority when available
 
 ## File summary

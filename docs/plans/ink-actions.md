@@ -2,11 +2,11 @@
 
 ## Context
 
-Currently, all xcli actions run as subprocesses — their stdout/stderr is captured and rendered as plain text. This plan adds support for `.tsx` action files that export an Ink component, which gets rendered directly in the Ink render tree. This enables rich interactive UIs (forms, spinners, tables, progress bars, etc.) inside actions.
+Currently, all zcli actions run as subprocesses — their stdout/stderr is captured and rendered as plain text. This plan adds support for `.tsx` action files that export an Ink component, which gets rendered directly in the Ink render tree. This enables rich interactive UIs (forms, spinners, tables, progress bars, etc.) inside actions.
 
-## Discrimination: `// xcli:component true`
+## Discrimination: `// zcli:component true`
 
-A `.tsx` file is treated as a component action **only** if it has `// xcli:component true` in its frontmatter. Without this flag, `.tsx` files run as subprocesses (existing behavior for `.ts`). This fits naturally into the existing metadata system and avoids importing files at discovery time.
+A `.tsx` file is treated as a component action **only** if it has `// zcli:component true` in its frontmatter. Without this flag, `.tsx` files run as subprocesses (existing behavior for `.ts`). This fits naturally into the existing metadata system and avoids importing files at discovery time.
 
 > TODO: If its .tsx, you can assume its an ink component. No need for frontmatter. Ink components arent supported for other filetypes.
 
@@ -44,7 +44,7 @@ Dynamic import wrapper that:
 
 States: `loading` → `ready` (renders component) or `error` (shows message).
 
-Props: `{ action: Action, cwd: string, config?: XcliConfig, onExit: () => void }`
+Props: `{ action: Action, cwd: string, config?: ZcliConfig, onExit: () => void }`
 
 ### 5. `src/app.tsx` — Route component actions
 
@@ -62,7 +62,7 @@ Add to `useInput`:
 Add to render:
 - New `if (currentScreen.type === "component")` block rendering `<ComponentAction>` instead of `<ActionOutput>`
 
-### 6. Test fixtures — `test/fixtures/component-repo/.xcli/actions/`
+### 6. Test fixtures — `test/fixtures/component-repo/.zcli/actions/`
 
 | File                    | Purpose                                          |
 |-------------------------|--------------------------------------------------|
@@ -103,6 +103,6 @@ Also add unit test in `test/metadata.test.ts` for parsing `component` flag.
 ## Verification
 
 1. `bun test` — all existing tests still pass, new component tests pass
-2. Manual: create a `.tsx` component action in `.xcli/actions/`, run `xcli`, select it, verify it renders inline
+2. Manual: create a `.tsx` component action in `.zcli/actions/`, run `zcli`, select it, verify it renders inline
 3. Manual: verify ESC returns to menu, and `exit()` callback works
-4. Manual: verify `.tsx` without `// xcli:component true` still runs as subprocess
+4. Manual: verify `.tsx` without `// zcli:component true` still runs as subprocess

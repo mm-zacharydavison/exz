@@ -1,4 +1,4 @@
-# xcli
+# zcli
 
 To install dependencies:
 

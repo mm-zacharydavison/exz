@@ -82,9 +82,9 @@ export type Screen =
   /** Confirmation prompt before running an action */
   | { type: "confirm"; actionId: string };
 
-export interface XcliConfig {
+export interface ZcliConfig {
   /**
-   * Subdirectory name under `.xcli/` containing actions
+   * Subdirectory name under `.zcli/` containing actions
    * @default "actions"
    */
   actionsDir?: string;

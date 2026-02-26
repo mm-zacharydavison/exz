@@ -74,15 +74,15 @@ describe("action discovery", () => {
     await cli.waitForText("No actions found");
   });
 
-  test("shows error when no .xcli directory exists", async () => {
-    // Use a temp dir so findXcliDir can't walk up into a real .xcli
-    const tempDir = await mkdtemp(join(tmpdir(), "xcli-no-dir-"));
+  test("shows error when no .zcli directory exists", async () => {
+    // Use a temp dir so findZcliDir can't walk up into a real .zcli
+    const tempDir = await mkdtemp(join(tmpdir(), "zcli-no-dir-"));
     try {
       cli = spawnCLI({ cwd: tempDir });
       const result = await cli.waitForExit();
       // Should exit with error and helpful message
       expect(result.exitCode).not.toBe(0);
-      expect(result.output + result.stderr).toContain(".xcli");
+      expect(result.output + result.stderr).toContain(".zcli");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

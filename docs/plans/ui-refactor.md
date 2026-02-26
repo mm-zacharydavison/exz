@@ -214,7 +214,7 @@ No package exists for this. Extract the duplicated `readStream` + `runAction` ef
 function useActionRunner(options: {
   action: Action | null;
   cwd: string;
-  config?: XcliConfig;
+  config?: ZcliConfig;
   enabled?: boolean;
 }): {
   lines: string[];

@@ -1,9 +1,9 @@
 {
-  "name": "@zdavison/xcli",
+  "name": "zcli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "xcli": "./dist/cli.js"
+    "zcli": "./dist/cli.js"
   },
   "scripts": {
     "build": "bun build.ts",

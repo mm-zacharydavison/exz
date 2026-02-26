@@ -2,7 +2,7 @@
 
 ## Context
 
-xcli currently only discovers actions from the local `.xcli/actions/` directory. Teams want to share scripts across repos via a central GitHub repository. This plan adds support for configuring external GitHub repos as action sources, with caching for instant startup and background refresh.
+zcli currently only discovers actions from the local `.zcli/actions/` directory. Teams want to share scripts across repos via a central GitHub repository. This plan adds support for configuring external GitHub repos as action sources, with caching for instant startup and background refresh.
 
 The key UX insight: **local actions load instantly, cached external actions load instantly, and fresh external data fetches asynchronously in the background**. The menu updates live if the fetched data differs from cache.
 
@@ -14,12 +14,12 @@ Syncing indicator: The StatusBar shows a `⟳ Syncing sources...` message while 
 
 ### Config format
 
-Users add a `sources` array to `.xcli/config.ts`:
+Users add a `sources` array to `.zcli/config.ts`:
 
 ```ts
 export default {
   sources: [
-    { repo: "meetsmore/xcli-scripts", ref: "main" },
+    { repo: "meetsmore/zcli-scripts", ref: "main" },
     { repo: "myorg/shared-ops", ref: "v2" },
   ],
 };
@@ -30,11 +30,11 @@ Only GitHub repos for now. `ref` defaults to `"main"` if omitted.
 ### Cache layout
 
 ```
-.xcli/
+.zcli/
 ├── .cache/
 │   ├── .gitignore              # Contains "*"
 │   └── sources/
-│       └── meetsmore-xcli-scripts-main/
+│       └── meetsmore-zcli-scripts-main/
 │           ├── .source-meta.json   # { fetchedAt: ISO string, repo, ref }
 │           └── actions/            # Cloned action files
 ```
@@ -54,7 +54,7 @@ Cache directory is auto-created and gitignored.
 Shared repos use `@org/repo` directory naming to scope actions:
 
 ```
-shared-xcli-scripts/.xcli/actions/
+shared-zcli-scripts/.zcli/actions/
 ├── general/                    # Available everywhere
 ├── @meetsmore/
 │   ├── common/                 # All @meetsmore repos
@@ -62,13 +62,13 @@ shared-xcli-scripts/.xcli/actions/
 │   └── web-app/                # Only @meetsmore/web-app
 ```
 
-When xcli detects the current repo is `@meetsmore/api-server` (via git remote), it **auto-navigates** into the matching scoped directory. User can ESC back to browse everything. Nothing is filtered — just pre-navigated.
+When zcli detects the current repo is `@meetsmore/api-server` (via git remote), it **auto-navigates** into the matching scoped directory. User can ESC back to browse everything. Nothing is filtered — just pre-navigated.
 
 ### Action merging & display
 
 - External actions get a `source` field on the `Action` type
-- IDs are prefixed with source name to avoid conflicts: `"meetsmore/xcli-scripts:database/reset"`
-- In the menu, external actions show their source as a dimmed suffix: `Deploy — meetsmore/xcli-scripts`
+- IDs are prefixed with source name to avoid conflicts: `"meetsmore/zcli-scripts:database/reset"`
+- In the menu, external actions show their source as a dimmed suffix: `Deploy — meetsmore/zcli-scripts`
 - Local actions always appear first in the menu, then external grouped by source
 
 ---
@@ -96,9 +96,9 @@ A `GitFetcher` implements this for GitHub repos. Future backends (S3, HTTP tarba
 ### `src/core/sources.ts` — Source orchestration
 
 Responsibilities:
-- `loadCachedSources(xcliDir, sources)` → load actions from `.xcli/.cache/sources/` (fast, sync-ish)
-- `refreshSources(xcliDir, sources, onUpdate, fetcher?)` → background fetch, calls `onUpdate(actions)` when done. Accepts optional fetcher (defaults to `GitFetcher`)
-- `ensureCacheDir(xcliDir)` → create `.cache/sources/` and `.gitignore`
+- `loadCachedSources(zcliDir, sources)` → load actions from `.zcli/.cache/sources/` (fast, sync-ish)
+- `refreshSources(zcliDir, sources, onUpdate, fetcher?)` → background fetch, calls `onUpdate(actions)` when done. Accepts optional fetcher (defaults to `GitFetcher`)
+- `ensureCacheDir(zcliDir)` → create `.cache/sources/` and `.gitignore`
 - Cache directory naming: `{owner}-{repo}-{ref}`
 
 ### `src/core/git-utils.ts` — Git remote detection
@@ -121,7 +121,7 @@ export interface SourceConfig {
 
 export interface ActionSource {
   type: "local" | "github";
-  label: string;      // "meetsmore/xcli-scripts" or "local"
+  label: string;      // "meetsmore/zcli-scripts" or "local"
 }
 
 export interface SourceMeta {
@@ -131,9 +131,9 @@ export interface SourceMeta {
 }
 ```
 
-Extend `XcliConfig`:
+Extend `ZcliConfig`:
 ```ts
-export interface XcliConfig {
+export interface ZcliConfig {
   // ... existing fields
   sources?: SourceConfig[];
 }
@@ -164,10 +164,10 @@ export interface MenuItem {
 
 Loading flow changes:
 ```
-1. loadConfig(xcliDir)
+1. loadConfig(zcliDir)
 2. loadActions(localActionsDir)                  → setActions(local)     [instant]
-3. loadCachedSources(xcliDir, config.sources)    → setActions(local + cached) [instant]
-4. refreshSources(xcliDir, config.sources, (freshActions) => {
+3. loadCachedSources(zcliDir, config.sources)    → setActions(local + cached) [instant]
+4. refreshSources(zcliDir, config.sources, (freshActions) => {
      setActions(local + freshActions)             [background update]
    })
 5. If repo identity matches a scoped dir, auto-push that menu screen
@@ -270,8 +270,8 @@ The auto-navigate logic:
 
 ## Verification
 
-1. Create a test GitHub repo with `.xcli/actions/` containing sample scripts
-2. Add it as a source in a local `.xcli/config.ts`
+1. Create a test GitHub repo with `.zcli/actions/` containing sample scripts
+2. Add it as a source in a local `.zcli/config.ts`
 3. Run `bun src/cli.tsx` — local actions appear immediately
 4. After a moment, external actions appear in the menu
 5. Kill network, restart — cached external actions still appear

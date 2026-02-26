@@ -4,7 +4,7 @@ import { join } from "node:path";
 // ─── Init result ──────────────────────────────────────────────────
 
 export interface InitResult {
-  xcliDir: string;
+  zcliDir: string;
 }
 
 // ─── Config file generation ───────────────────────────────────────
@@ -25,8 +25,8 @@ export interface WriteInitFilesResult {
 export async function writeInitFiles(
   cwd: string,
 ): Promise<WriteInitFilesResult> {
-  const xcliDir = join(cwd, ".xcli");
-  const actionsDir = join(xcliDir, "actions");
+  const zcliDir = join(cwd, ".zcli");
+  const actionsDir = join(zcliDir, "actions");
   mkdirSync(actionsDir, { recursive: true });
 
   // Sample action
@@ -37,12 +37,12 @@ export async function writeInitFiles(
     await Bun.write(
       sampleAction,
       `#!/bin/bash
-# xcli:name Hello World
-# xcli:emoji 👋
-# xcli:description A sample action — edit or delete this file
+# zcli:name Hello World
+# zcli:emoji 👋
+# zcli:description A sample action — edit or delete this file
 
-echo "Hello from xcli!"
-echo "Add your own scripts to .xcli/actions/ to get started."
+echo "Hello from zcli!"
+echo "Add your own scripts to .zcli/actions/ to get started."
 `,
     );
     sampleCreated = true;
@@ -50,7 +50,7 @@ echo "Add your own scripts to .xcli/actions/ to get started."
 
   // Config file
   const configContent = generateConfigFile();
-  const configPath = join(xcliDir, "config.ts");
+  const configPath = join(zcliDir, "config.ts");
   await Bun.write(configPath, configContent);
 
   // Claude Code skill file — only if the repo uses Claude Code
@@ -58,7 +58,7 @@ echo "Add your own scripts to .xcli/actions/ to get started."
   const hasClaudeDir = existsSync(join(cwd, ".claude"));
   const hasClaudeMd = existsSync(join(cwd, "CLAUDE.md"));
   if (hasClaudeDir || hasClaudeMd) {
-    const skillDir = join(cwd, ".claude", "skills", "xcli");
+    const skillDir = join(cwd, ".claude", "skills", "zcli");
     const skillPath = join(skillDir, "SKILL.md");
     if (!(await Bun.file(skillPath).exists())) {
       mkdirSync(skillDir, { recursive: true });
@@ -72,21 +72,21 @@ echo "Add your own scripts to .xcli/actions/ to get started."
 
 function generateSkillFile(): string {
   return `---
-name: xcli
+name: zcli
 description: >-
-  xcli is a script runner for this project. Discover available actions with
-  xcli list --json, and run them with xcli run <action-id>.
+  zcli is a script runner for this project. Discover available actions with
+  zcli list --json, and run them with zcli run <action-id>.
 user-invocable: false
 ---
 
-# xcli — Project Script Runner
+# zcli — Project Script Runner
 
-xcli manages and runs project-specific shell scripts stored in \`.xcli/actions/\`.
+zcli manages and runs project-specific shell scripts stored in \`.zcli/actions/\`.
 
 ## Discovering Actions
 
 \`\`\`bash
-xcli list --json
+zcli list --json
 \`\`\`
 
 Returns a JSON array of available actions:
@@ -105,14 +105,14 @@ Returns a JSON array of available actions:
 ]
 \`\`\`
 
-Use \`--all\` to include hidden actions: \`xcli list --json --all\`
+Use \`--all\` to include hidden actions: \`zcli list --json --all\`
 
-Always use \`xcli list --json\` for the current set of actions — do not hardcode action lists.
+Always use \`zcli list --json\` for the current set of actions — do not hardcode action lists.
 
 ## Running Actions
 
 \`\`\`bash
-xcli run <action-id>
+zcli run <action-id>
 \`\`\`
 
 Runs the action and streams stdout/stderr directly. The process exits with the action's exit code.
@@ -121,22 +121,22 @@ Confirmation prompts are automatically skipped in non-TTY environments.
 ### Examples
 
 \`\`\`bash
-xcli run hello
-xcli run database/reset
+zcli run hello
+zcli run database/reset
 \`\`\`
 
 ## Creating Actions
 
-Create a script file in \`.xcli/actions/\`. Supported extensions: \`.sh\`, \`.bash\`, \`.ts\`, \`.js\`, \`.mjs\`, \`.py\`.
+Create a script file in \`.zcli/actions/\`. Supported extensions: \`.sh\`, \`.bash\`, \`.ts\`, \`.js\`, \`.mjs\`, \`.py\`.
 
-Add metadata as comments in the first 20 lines using \`# xcli:<key> <value>\` (for shell/python) or \`// xcli:<key> <value>\` (for JS/TS):
+Add metadata as comments in the first 20 lines using \`# zcli:<key> <value>\` (for shell/python) or \`// zcli:<key> <value>\` (for JS/TS):
 
 \`\`\`bash
 #!/bin/bash
-# xcli:name Deploy Staging
-# xcli:emoji 🚀
-# xcli:description Deploy the app to the staging environment
-# xcli:confirm true
+# zcli:name Deploy Staging
+# zcli:emoji 🚀
+# zcli:description Deploy the app to the staging environment
+# zcli:confirm true
 
 echo "Deploying..."
 \`\`\`
@@ -156,7 +156,7 @@ If \`name\` is omitted, it is inferred from the filename (e.g. \`deploy-staging.
 Organize actions into categories using subdirectories:
 
 \`\`\`
-.xcli/actions/
+.zcli/actions/
   hello.sh              → id: "hello"
   database/
     migrate.sh          → id: "database/migrate"

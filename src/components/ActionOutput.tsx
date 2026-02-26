@@ -1,11 +1,11 @@
 import { Box, Text } from "ink";
 import { useActionRunner } from "../hooks/useActionRunner.ts";
-import type { Action, XcliConfig } from "../types.ts";
+import type { Action, ZcliConfig } from "../types.ts";
 
 interface ActionOutputProps {
   action: Action;
   cwd: string;
-  config?: XcliConfig;
+  config?: ZcliConfig;
 }
 
 export function ActionOutput({ action, cwd, config }: ActionOutputProps) {

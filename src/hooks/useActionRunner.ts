@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { runAction } from "../core/runner.ts";
-import type { Action, XcliConfig } from "../types.ts";
+import type { Action, ZcliConfig } from "../types.ts";
 
 interface UseActionRunnerOptions {
   action: Action | null;
   cwd: string;
-  config?: XcliConfig;
+  config?: ZcliConfig;
   enabled?: boolean;
 }
 

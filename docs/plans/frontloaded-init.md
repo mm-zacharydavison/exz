@@ -1,10 +1,10 @@
 # Frontloaded Init
 
-Move all configuration decisions into the `xcli init` wizard and add pull request workflow support.
+Move all configuration decisions into the `zcli init` wizard and add pull request workflow support.
 
 ## Motivation
 
-The current init workflow uses smart auto-detection (probing GitHub API for `{org}/xcli-actions`, inferring org vs personal from git remote). This creates implicit behavior that's hard to predict and debug. The share workflow also always pushes directly to main, which doesn't work for teams that require code review.
+The current init workflow uses smart auto-detection (probing GitHub API for `{org}/zcli-actions`, inferring org vs personal from git remote). This creates implicit behavior that's hard to predict and debug. The share workflow also always pushes directly to main, which doesn't work for teams that require code review.
 
 This plan replaces auto-detection with explicit questions during init, and adds a PR-based sharing option.
 
@@ -21,9 +21,9 @@ After this change, all of these read from config written during init instead of 
 Phases: detecting → choose-source → enter-repo | creating-repo → writing → done
 
 - **Auto-detects** org from git remote (`detectRepoIdentity`)
-- **Probes GitHub API** for `{org}/xcli-actions` repo (`detectXcliActionsRepo`)
+- **Probes GitHub API** for `{org}/zcli-actions` repo (`detectZcliActionsRepo`)
 - **Branches UI** based on detection results (3 different option sets)
-- **Offers to create** `{org}/xcli-actions` on GitHub
+- **Offers to create** `{org}/zcli-actions` on GitHub
 
 ### Share Workflow (`src/ai/share.ts` + `src/components/ShareScreen.tsx`)
 
@@ -31,7 +31,7 @@ Phases: detecting → choose-source → enter-repo | creating-repo → writing �
 - `shareToSource()`: pull → copy files → commit → `git push`
 - ShareScreen picks source repo + destination path, then calls `shareToSource`
 
-### Config (`src/types.ts` → `XcliConfig`)
+### Config (`src/types.ts` → `ZcliConfig`)
 
 ```ts
 {
@@ -60,8 +60,8 @@ No PR config exists. No share strategy config exists.
 Replace the current detection-based branching with a linear question sequence.
 
 ```
-Phase 1: "Where should xcli actions live?"
-  ❯ Local only (.xcli/actions/)
+Phase 1: "Where should zcli actions live?"
+  ❯ Local only (.zcli/actions/)
   ❯ Shared repo
 
 Phase 2: (if shared repo) "Shared repo setup"
@@ -69,12 +69,12 @@ Phase 2: (if shared repo) "Shared repo setup"
   ❯ Use an existing repo
 
 Phase 2a: (if create) "Where should the repo be created?"
-  ❯ Personal (github.com/{username}/xcli-actions)
-  ❯ {org-1} (github.com/{org-1}/xcli-actions)
-  ❯ {org-2} (github.com/{org-2}/xcli-actions)
+  ❯ Personal (github.com/{username}/zcli-actions)
+  ❯ {org-1} (github.com/{org-1}/zcli-actions)
+  ❯ {org-2} (github.com/{org-2}/zcli-actions)
   ...
   [fetches orgs via `gh api user/orgs`, lists them alongside personal account]
-  [runs `gh repo create {owner}/xcli-actions --public`, captures default branch]
+  [runs `gh repo create {owner}/zcli-actions --public`, captures default branch]
 
 Phase 2b: (if existing) "Enter the repo"
   > org/repo-name
@@ -82,7 +82,7 @@ Phase 2b: (if existing) "Enter the repo"
 
 Phase 3: "How should changes be pushed?"
   ❯ Push directly to the default branch
-  ❯ Push to an xcli-actions branch
+  ❯ Push to an zcli-actions branch
   ❯ Create a pull request
 
 Phase 4: (if PR) "Who should review PRs?" (optional)
@@ -94,16 +94,16 @@ Phase 5: "Enable AI action generation?"
 
 Phase 6: Write files
   [if new repo + PR strategy: setup branch protection rules on default branch]
-  [if xcli-actions branch + PR strategy: setup branch protection on xcli-actions branch]
+  [if zcli-actions branch + PR strategy: setup branch protection on zcli-actions branch]
 ```
 
-Phase 3 applies regardless of local vs shared — even local-only users may want changes to `.xcli/` committed via PR to their project repo. The three strategies:
+Phase 3 applies regardless of local vs shared — even local-only users may want changes to `.zcli/` committed via PR to their project repo. The three strategies:
 
 | Strategy              | What happens when sharing                                                   |
 |-----------------------|-----------------------------------------------------------------------------|
 | Push to default branch | `git push` directly to main/master (current behavior)                      |
-| xcli-actions branch   | Push to a persistent `xcli-actions` branch in the target repo               |
-| Pull request          | Create a feature branch `xcli/add-actions-{timestamp}`, push, open PR via `gh` |
+| zcli-actions branch   | Push to a persistent `zcli-actions` branch in the target repo               |
+| Pull request          | Create a feature branch `zcli/add-actions-{timestamp}`, push, open PR via `gh` |
 
 Phase 5 asks explicitly instead of silently detecting. `detectAiCli()` is still called to show a warning if they select "Yes" but the Claude CLI isn't installed.
 
@@ -112,7 +112,7 @@ Phase 5 asks explicitly instead of silently detecting. `detectAiCli()` is still 
 | Removed                                       | Why                                                 |
 |-----------------------------------------------|-----------------------------------------------------|
 | `detectRepoIdentity()` call during init       | User explicitly picks local or enters repo          |
-| `detectXcliActionsRepo()` GitHub API probe    | User explicitly enters repo or creates one          |
+| `detectZcliActionsRepo()` GitHub API probe    | User explicitly enters repo or creates one          |
 | Smart option branching in `buildSourceOptions` | Single linear flow for all cases                   |
 | `creating-repo` and `create-failed` phases    | Replaced by Phase 2's "create new repo" sub-flow    |
 | `detectRepoIdentity()` in `cli.tsx` main      | Read `org` from config instead                      |
@@ -125,8 +125,8 @@ Phase 5 asks explicitly instead of silently detecting. `detectAiCli()` is still 
 |---------------------------|--------------------------------------------------------------|
 | `detectAiCli()`           | Warn if user enables AI but Claude CLI isn't installed       |
 | `validateRepo()` API call | Validates the entered repo exists when using existing repo   |
-| `createXcliActionsRepo()` | Moved from auto-detection to explicit Phase 2 "create" path |
-| `writeInitFiles()`        | Still writes .xcli/ directory and config                     |
+| `createZcliActionsRepo()` | Moved from auto-detection to explicit Phase 2 "create" path |
+| `writeInitFiles()`        | Still writes .zcli/ directory and config                     |
 
 ### 2. Config Changes
 
@@ -147,7 +147,7 @@ export interface ShareConfig {
   reviewer?: string;
 }
 
-export interface XcliConfig {
+export interface ZcliConfig {
   actionsDir?: string;
   env?: Record<string, string>;
   hooks?: { before?: string; after?: string };
@@ -169,7 +169,7 @@ The share config is top-level (not nested under sources) because it applies to a
 
 ### 3. Share Workflow Changes
 
-Currently sharing is only triggered after AI generation (`generationResult` → `ShareScreen`). There's no way to share an action you wrote by hand or copied into `.xcli/actions/`. This needs to change — sharing should be accessible from the main menu for any local action.
+Currently sharing is only triggered after AI generation (`generationResult` → `ShareScreen`). There's no way to share an action you wrote by hand or copied into `.zcli/actions/`. This needs to change — sharing should be accessible from the main menu for any local action.
 
 #### New share entry point: keybinding from menu
 
@@ -185,9 +185,9 @@ The `ShareScreen` component already handles source selection, path selection, an
 
 #### Path selection in ShareScreen
 
-The current `buildPathOptions` derives `existingDirs` from local action categories (top-level folders in `.xcli/actions/`). This is wrong for the share target — the relevant paths are the directories in the *destination* source repo, not the local ones.
+The current `buildPathOptions` derives `existingDirs` from local action categories (top-level folders in `.zcli/actions/`). This is wrong for the share target — the relevant paths are the directories in the *destination* source repo, not the local ones.
 
-Change `buildPathOptions` to scan the source repo's cached clone (`.xcli/.cache/sources/{owner}-{repo}-{ref}/`) for existing directories instead. This gives accurate path suggestions for where to place the shared action in the target repo.
+Change `buildPathOptions` to scan the source repo's cached clone (`.zcli/.cache/sources/{owner}-{repo}-{ref}/`) for existing directories instead. This gives accurate path suggestions for where to place the shared action in the target repo.
 
 The pick-path step becomes:
 
@@ -215,12 +215,12 @@ New: Branch based on `config.share.strategy`:
 
 - **`push` (default, current behavior):** pull → copy → commit → `git push`
 - **`branch`:**
-  1. Checkout or create `xcli-actions` branch
+  1. Checkout or create `zcli-actions` branch
   2. Copy files → commit
-  3. `git push origin xcli-actions`
+  3. `git push origin zcli-actions`
 - **`pr`:**
   1. Pull latest default branch
-  2. Create a timestamped branch: `xcli/add-actions-{timestamp}`
+  2. Create a timestamped branch: `zcli/add-actions-{timestamp}`
   3. Copy files → commit
   4. Push the branch
   5. Create PR via `gh pr create --title "..." --body "..." [--reviewer config.share.reviewer]`
@@ -244,7 +244,7 @@ export interface ShareResult {
 
 ### 4. Branch Protection Setup
 
-When init creates a new repo (Phase 2 "create") or the user selects the `xcli-actions` branch strategy, and the push strategy is `pr`, automatically configure branch protection rules:
+When init creates a new repo (Phase 2 "create") or the user selects the `zcli-actions` branch strategy, and the push strategy is `pr`, automatically configure branch protection rules:
 
 ```bash
 # For new repos with PR strategy — protect the default branch
@@ -252,8 +252,8 @@ gh api repos/{owner}/{repo}/branches/{default_branch}/protection \
   --method PUT \
   --field required_pull_request_reviews='{"required_approving_review_count":1}'
 
-# For xcli-actions branch strategy with PR — protect the xcli-actions branch
-gh api repos/{owner}/{repo}/branches/xcli-actions/protection \
+# For zcli-actions branch strategy with PR — protect the zcli-actions branch
+gh api repos/{owner}/{repo}/branches/zcli-actions/protection \
   --method PUT \
   --field required_pull_request_reviews='{"required_approving_review_count":1}'
 ```
@@ -278,7 +278,7 @@ const userName = gitUserName ?? undefined;
 
 After:
 ```ts
-const cfg = await loadConfig(xcliDir);
+const cfg = await loadConfig(zcliDir);
 const org = cfg.org;
 const userName = cfg.userName;
 ```
@@ -350,9 +350,9 @@ export default {
 
 | File                            | Change                                                                                                   |
 |---------------------------------|----------------------------------------------------------------------------------------------------------|
-| `src/types.ts`                  | Add `ShareConfig`, `share` screen type, add `share?`, `org?`, `userName?`, `autoNavigate?` to `XcliConfig` |
+| `src/types.ts`                  | Add `ShareConfig`, `share` screen type, add `share?`, `org?`, `userName?`, `autoNavigate?` to `ZcliConfig` |
 | `src/components/InitWizard.tsx` | Replace detection-branched flow with linear question sequence; add org selection for repo creation         |
-| `src/core/init-wizard.ts`       | Remove `detectXcliActionsRepo`; add org listing via `gh api user/orgs`; update `generateConfigFile`; add branch protection setup |
+| `src/core/init-wizard.ts`       | Remove `detectZcliActionsRepo`; add org listing via `gh api user/orgs`; update `generateConfigFile`; add branch protection setup |
 | `src/ai/share.ts` → `src/core/share.ts` | Move out of `ai/`; add `branch` and `pr` strategies; return `prUrl`/`branchName` in `ShareResult` |
 | `src/components/ShareScreen.tsx` | Display PR URL or branch name after share; read org/userName from config instead of props                |
 | `src/app.tsx`                   | Remove `org`/`userName` props; render `ShareScreen` for `share` screen type                              |

@@ -1,16 +1,16 @@
-# xcli — Initial Architecture Plan
+# zcli — Initial Architecture Plan
 
 ## Context
 
-xcli is a CLI tool that provides an interactive terminal UI for running housekeeping tasks in any repository. Users place scripts in a `.xcli/` directory, and xcli discovers them, presents them in a navigable menu with fuzzy search, runs them, and streams output — all within a polished terminal interface.
+zcli is a CLI tool that provides an interactive terminal UI for running housekeeping tasks in any repository. Users place scripts in a `.zcli/` directory, and zcli discovers them, presents them in a navigable menu with fuzzy search, runs them, and streams output — all within a polished terminal interface.
 
-The tool is distributed via `bunx xcli` (no global install required) and built entirely on Bun.
+The tool is distributed via `bunx zcli` (no global install required) and built entirely on Bun.
 
 ## Goals (Phased)
 
 | Phase | Goal                                                           | Status  |
 | ----- | -------------------------------------------------------------- | ------- |
-| 1     | Interactive CLI UI + `.xcli` directory loading                 | Current |
+| 1     | Interactive CLI UI + `.zcli` directory loading                 | Current |
 | 2     | External sources (repos, gists) with caching                  | Future  |
 | 3     | AI generation of scripts with commit prompting                 | Future  |
 
@@ -19,7 +19,7 @@ The tool is distributed via `bunx xcli` (no global install required) and built e
 ## 1. Project Structure
 
 ```
-xcli/
+zcli/
 ├── src/
 │   ├── cli.tsx                  # Entry point (bin). Arg parsing, renders <App />
 │   ├── app.tsx                  # Root component. Navigation state, screen router
@@ -30,10 +30,10 @@ xcli/
 │   │   ├── Breadcrumbs.tsx      # Shows navigation path (Home > Category > ...)
 │   │   └── StatusBar.tsx        # Bottom bar with keybind hints
 │   ├── core/
-│   │   ├── loader.ts            # Discovers and parses actions from .xcli/actions/
+│   │   ├── loader.ts            # Discovers and parses actions from .zcli/actions/
 │   │   ├── runner.ts            # Spawns scripts, streams stdout/stderr
 │   │   ├── metadata.ts          # Parses metadata from script comments/config
-│   │   └── config.ts            # Loads .xcli/config.ts repo-level configuration
+│   │   └── config.ts            # Loads .zcli/config.ts repo-level configuration
 │   └── types.ts                 # Shared type definitions
 ├── test/
 │   ├── loader.test.ts           # Tests for action discovery and metadata parsing
@@ -51,12 +51,12 @@ xcli/
 
 ---
 
-## 2. `.xcli` Directory Convention
+## 2. `.zcli` Directory Convention
 
-Repos that use xcli create a `.xcli/` directory at their root:
+Repos that use zcli create a `.zcli/` directory at their root:
 
 ```
-.xcli/
+.zcli/
 ├── config.ts                    # Optional repo-level configuration
 └── actions/
     ├── deploy/                  # Category (becomes submenu)
@@ -80,18 +80,18 @@ Repos that use xcli create a `.xcli/` directory at their root:
 
 ## 3. Action Metadata Format
 
-Every script can declare metadata. If no metadata is found, xcli infers from the filename.
+Every script can declare metadata. If no metadata is found, zcli infers from the filename.
 
 ### Comment Frontmatter (all languages)
 
-All script types use the same `xcli:<key> <value>` comment frontmatter, with the comment prefix matching the language:
+All script types use the same `zcli:<key> <value>` comment frontmatter, with the comment prefix matching the language:
 
 ```bash
 #!/bin/bash
-# xcli:name Deploy to Staging
-# xcli:emoji 🚀
-# xcli:description Deploy the current branch to staging environment
-# xcli:confirm true
+# zcli:name Deploy to Staging
+# zcli:emoji 🚀
+# zcli:description Deploy the current branch to staging environment
+# zcli:confirm true
 
 set -euo pipefail
 echo "Deploying..."
@@ -99,19 +99,19 @@ echo "Deploying..."
 
 ```python
 #!/usr/bin/env python3
-# xcli:name Generate Report
-# xcli:emoji 📊
-# xcli:description Generate monthly analytics report
+# zcli:name Generate Report
+# zcli:emoji 📊
+# zcli:description Generate monthly analytics report
 
 import subprocess
 ...
 ```
 
 ```ts
-// xcli:name Reset Database
-// xcli:emoji 🗑️
-// xcli:description Drop and recreate the dev database
-// xcli:confirm true
+// zcli:name Reset Database
+// zcli:emoji 🗑️
+// zcli:description Drop and recreate the dev database
+// zcli:confirm true
 
 await $`dropdb myapp_dev`;
 await $`createdb myapp_dev`;
@@ -125,8 +125,8 @@ The metadata parser recognizes both `#` and `//` comment prefixes, scanning the 
 TS/JS files can optionally export a `meta` object and `run` function for richer integration (e.g. programmatic access to `ActionContext`):
 
 ```ts
-// .xcli/actions/database/reset.ts
-import type { ActionMeta, ActionContext } from "xcli";
+// .zcli/actions/database/reset.ts
+import type { ActionMeta, ActionContext } from "zcli";
 
 export const meta: ActionMeta = {
   name: "Reset Database",
@@ -202,7 +202,7 @@ export type Screen =
   | { type: "menu"; path: string[]; }           // path=[] is root
   | { type: "output"; actionId: string; };
 
-export interface XcliConfig {
+export interface ZcliConfig {
   actionsDir?: string;        // Default: "actions"
   env?: Record<string, string>;
   hooks?: {
@@ -220,7 +220,7 @@ Ink renders **inline** by default — it does not use an alternate screen buffer
 
 ```
 <App>                          # Navigation state, screen router
-├── <Breadcrumbs />            # "xcli > database > reset"
+├── <Breadcrumbs />            # "zcli > database > reset"
 ├── {screen.type === "menu" && (
 │     <MenuScreen>             # Current menu items + fuzzy filter
 │       <SearchInput />        # "/" to activate, ESC to clear
@@ -255,9 +255,9 @@ Ink renders **inline** by default — it does not use an alternate screen buffer
 
 ### `src/core/loader.ts` — Action Discovery
 
-1. Find repo root (walk up looking for `.xcli/` or `.git/`)
-2. Read `.xcli/config.ts` if present (via `import()`)
-3. Recursively scan `.xcli/actions/` directory
+1. Find repo root (walk up looking for `.zcli/` or `.git/`)
+2. Read `.zcli/config.ts` if present (via `import()`)
+3. Recursively scan `.zcli/actions/` directory
 4. For each file:
    - Determine runtime from extension (`.ts` → bun, `.sh` → bash, `.py` → python)
    - Extract metadata via `metadata.ts`
@@ -267,7 +267,7 @@ Ink renders **inline** by default — it does not use an alternate screen buffer
 ### `src/core/metadata.ts` — Metadata Extraction
 
 Unified approach for all file types:
-1. Read first 20 lines, extract `xcli:<key> <value>` from comment lines (`#` or `//` prefix)
+1. Read first 20 lines, extract `zcli:<key> <value>` from comment lines (`#` or `//` prefix)
 2. For TS/JS files only: if no frontmatter found, attempt `import()` and read `.meta` export
 3. Fall back to filename inference (title-case, strip extension, replace hyphens/underscores)
 
@@ -284,11 +284,11 @@ function runAction(action: Action, options: { cwd: string }): ChildProcess
   - `executable` → `./<file>` (if file has +x)
 - Spawns child process with `Bun.spawn()`
 - Returns handle with streaming stdout/stderr readers
-- Inherits environment from parent + any `.xcli/config.ts` env overrides
+- Inherits environment from parent + any `.zcli/config.ts` env overrides
 
 ### `src/core/config.ts` — Configuration
 
-Loads `.xcli/config.ts` via dynamic import. Validates against `XcliConfig` schema. Provides defaults.
+Loads `.zcli/config.ts` via dynamic import. Validates against `ZcliConfig` schema. Provides defaults.
 
 ---
 
@@ -298,11 +298,11 @@ Loads `.xcli/config.ts` via dynamic import. Validates against `XcliConfig` schem
 
 ```json
 {
-  "name": "xcli",
+  "name": "zcli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "xcli": "./src/cli.tsx"
+    "zcli": "./src/cli.tsx"
   },
   "files": ["src/", "README.md"],
   "dependencies": {
@@ -325,13 +325,13 @@ Loads `.xcli/config.ts` via dynamic import. Validates against `XcliConfig` schem
 ### Usage
 
 ```sh
-# Run in any repo with a .xcli/ directory
-bunx xcli
+# Run in any repo with a .zcli/ directory
+bunx zcli
 
 # Or with args (future)
-bunx xcli --help
-bunx xcli run database/reset    # Run action directly without UI
-bunx xcli list                  # List all available actions
+bunx zcli --help
+bunx zcli run database/reset    # Run action directly without UI
+bunx zcli list                  # List all available actions
 ```
 
 The `src/cli.tsx` file starts with `#!/usr/bin/env bun` shebang for direct execution.
@@ -353,7 +353,7 @@ The `src/cli.tsx` file starts with `#!/usr/bin/env bun` shebang for direct execu
 test/
   fixtures/
     basic-repo/
-      .xcli/
+      .zcli/
         actions/
           hello.sh           # Simple echo script with frontmatter
           cleanup.py         # Top-level action, no metadata (filename inference)
@@ -362,18 +362,18 @@ test/
             seed.py          # Python script with frontmatter
             migrate.sh       # Bash script with frontmatter
     empty-repo/
-      .xcli/
+      .zcli/
         actions/             # Empty directory (tests empty state)
-    no-xcli-repo/            # No .xcli directory at all (tests missing state)
+    no-zcli-repo/            # No .zcli directory at all (tests missing state)
     nested-repo/
-      .xcli/
+      .zcli/
         actions/
           deploy/
             staging/
               us-east.sh     # 2 levels deep (within limit)
               eu-west.sh
     config-repo/
-      .xcli/
+      .zcli/
         config.ts            # Custom config with env vars and hooks
         actions/
           test.sh
@@ -385,14 +385,14 @@ test/
 
 | Test                                        | Input                                        | Expected                                               |
 | ------------------------------------------- | -------------------------------------------- | ------------------------------------------------------ |
-| Parses `#` comment frontmatter              | `# xcli:name Foo\n# xcli:emoji 🔥`          | `{ name: "Foo", emoji: "🔥" }`                        |
-| Parses `//` comment frontmatter             | `// xcli:name Bar\n// xcli:description Desc` | `{ name: "Bar", description: "Desc" }`                |
-| Parses `confirm` as boolean                 | `# xcli:confirm true`                        | `{ confirm: true }`                                    |
-| Parses `hidden` as boolean                  | `# xcli:hidden true`                         | `{ hidden: true }`                                     |
-| Ignores lines without `xcli:` prefix        | `# just a comment\n# xcli:name Foo`          | `{ name: "Foo" }`                                      |
+| Parses `#` comment frontmatter              | `# zcli:name Foo\n# zcli:emoji 🔥`          | `{ name: "Foo", emoji: "🔥" }`                        |
+| Parses `//` comment frontmatter             | `// zcli:name Bar\n// zcli:description Desc` | `{ name: "Bar", description: "Desc" }`                |
+| Parses `confirm` as boolean                 | `# zcli:confirm true`                        | `{ confirm: true }`                                    |
+| Parses `hidden` as boolean                  | `# zcli:hidden true`                         | `{ hidden: true }`                                     |
+| Ignores lines without `zcli:` prefix        | `# just a comment\n# zcli:name Foo`          | `{ name: "Foo" }`                                      |
 | Only scans first 20 lines                   | Metadata on line 21                           | Falls back to filename inference                       |
-| Falls back to filename when no frontmatter  | File with no `xcli:` comments                | `{ name: "Reset Db" }` from `reset-db.sh`             |
-| Handles mixed `#` and `//` (uses first hit) | `# xcli:name A\n// xcli:name B`              | `{ name: "A" }`                                        |
+| Falls back to filename when no frontmatter  | File with no `zcli:` comments                | `{ name: "Reset Db" }` from `reset-db.sh`             |
+| Handles mixed `#` and `//` (uses first hit) | `# zcli:name A\n// zcli:name B`              | `{ name: "A" }`                                        |
 | TS export fallback                          | `.ts` with `export const meta` but no frontmatter | Reads exported `meta` object                      |
 | TS frontmatter takes priority over export   | `.ts` with both frontmatter and `meta` export | Frontmatter wins                                      |
 
@@ -406,7 +406,7 @@ test/
 | Ignores dotfiles and underscored files      | fixture with `_helper.sh`, `.hidden.sh` | Not included in results          |
 | Handles nested categories                   | `nested-repo`     | `deploy/staging/us-east.sh` with `category: ["deploy", "staging"]` |
 | Returns empty array for empty actions dir   | `empty-repo`      | `[]`                                                        |
-| Throws/errors when no `.xcli` dir found     | `no-xcli-repo`    | Appropriate error                                           |
+| Throws/errors when no `.zcli` dir found     | `no-zcli-repo`    | Appropriate error                                           |
 | Sorts actions alphabetically within category | `basic-repo`     | Actions sorted by name within each category                 |
 | Builds correct action IDs from paths        | `basic-repo`      | `"database/reset"`, `"database/seed"`, `"hello"`, etc.     |
 
@@ -427,8 +427,8 @@ test/
 
 | Test                                        | Setup                                        | Expected                                          |
 | ------------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
-| Loads config.ts with env vars               | `config-repo` fixture                        | Parsed `XcliConfig` with env populated            |
-| Returns defaults when no config.ts exists   | `basic-repo` fixture                         | Default `XcliConfig` values                       |
+| Loads config.ts with env vars               | `config-repo` fixture                        | Parsed `ZcliConfig` with env populated            |
+| Returns defaults when no config.ts exists   | `basic-repo` fixture                         | Default `ZcliConfig` values                       |
 | Merges config env with process env           | Config env + existing process env             | Config env overrides, process env preserved       |
 
 #### `test/components/MenuScreen.test.tsx` — Menu Rendering
@@ -460,7 +460,7 @@ test/
 | Enter on category pushes submenu            | Select a category                            | Submenu rendered, breadcrumbs updated             |
 | ESC pops back to parent                     | In submenu → ESC                             | Parent menu restored                              |
 | ESC at root exits app                       | At root → ESC                                | App unmounts                                      |
-| Breadcrumbs reflect current path            | Navigate to `database`                       | Breadcrumbs show `xcli > database`                |
+| Breadcrumbs reflect current path            | Navigate to `database`                       | Breadcrumbs show `zcli > database`                |
 | Enter on action pushes output screen        | Select an action                             | ActionOutput rendered                             |
 | ESC from output returns to menu             | In output → ESC                              | Menu restored at same position                    |
 
@@ -499,7 +499,7 @@ test/
 3. Add confirmation prompt for `confirm: true` actions
 
 ### Phase 1f — Polish
-1. Error handling (missing `.xcli/`, bad scripts, permission errors)
+1. Error handling (missing `.zcli/`, bad scripts, permission errors)
 2. Empty states (no actions found)
 3. Graceful process cleanup on exit (kill child processes)
 4. Help text and `--help` flag
@@ -510,15 +510,15 @@ test/
 
 ### Goal 2 — External Sources
 
-The default action source is always the local `.xcli/actions/` directory. However, the primary use case for external sources is a **shared scripts repo** within an organization, where team members have push access.
+The default action source is always the local `.zcli/actions/` directory. However, the primary use case for external sources is a **shared scripts repo** within an organization, where team members have push access.
 
 #### Org/Repo Scoping Convention
 
 Scripts in a shared source can be scoped to specific repos using `@org/repo` directory naming:
 
 ```
-shared-xcli-scripts/          # The shared repo
-├── .xcli/
+shared-zcli-scripts/          # The shared repo
+├── .zcli/
 │   └── actions/
 │       ├── general/           # Available everywhere
 │       │   └── lint-all.sh
@@ -532,28 +532,28 @@ shared-xcli-scripts/          # The shared repo
 │       │       └── build.sh
 ```
 
-When xcli runs, it detects the current repo's git remote (e.g. `github.com/meetsmore/api-server`) and automatically navigates to the matching `@meetsmore/api-server/` directory in the menu. The user can press `ESC` to go back up and browse other repos or unscoped actions — nothing is hidden or filtered out.
+When zcli runs, it detects the current repo's git remote (e.g. `github.com/meetsmore/api-server`) and automatically navigates to the matching `@meetsmore/api-server/` directory in the menu. The user can press `ESC` to go back up and browse other repos or unscoped actions — nothing is hidden or filtered out.
 
 #### Configuration
 
 ```
-.xcli/
+.zcli/
   config.ts              # Add `sources` field
   actions/               # Local actions
   .cache/                # Cached external actions (gitignored)
 ```
 
 ```ts
-// .xcli/config.ts
+// .zcli/config.ts
 export default {
   sources: [
-    { type: "github", repo: "meetsmore/xcli-scripts", ref: "main" },
+    { type: "github", repo: "meetsmore/zcli-scripts", ref: "main" },
     { type: "gist", id: "abc123" },
   ],
 };
 ```
 
-A `src/external/` module would handle fetching, caching (in `.xcli/.cache/`), and staleness checks. External actions appear alongside local ones in the menu, tagged with their source.
+A `src/external/` module would handle fetching, caching (in `.zcli/.cache/`), and staleness checks. External actions appear alongside local ones in the menu, tagged with their source.
 
 ### Goal 3 — AI Script Generation
 
@@ -562,7 +562,7 @@ Add a special menu item "Generate new action..." that:
 2. Invokes Claude Code locally (via `claude` CLI) to generate the script, leveraging the user's existing Max plan
 3. Shows a preview of the generated script
 4. Runs it in a sandboxed mode (with confirmation)
-5. Prompts: "Save this action for the team?" → writes to `.xcli/actions/` and offers to `git add + commit`
+5. Prompts: "Save this action for the team?" → writes to `.zcli/actions/` and offers to `git add + commit`
 
 The primary generation method is **local Claude Code** (`claude` CLI), so users on Max plans get generation at no extra API cost. External AI APIs (OpenAI, Anthropic API directly, etc.) can be supported as a future alternative for users without Claude Code installed.
 
@@ -574,7 +574,7 @@ This lives in `src/ai/` and hooks into the existing menu system as a special act
 
 After implementation, verify with:
 
-1. Create a test `.xcli/actions/` directory with sample scripts (bash, ts, python)
+1. Create a test `.zcli/actions/` directory with sample scripts (bash, ts, python)
 2. Run `bun src/cli.tsx` from the repo root
 3. Confirm: menu renders, categories show as submenus, fuzzy search filters items
 4. Select an action → output streams in real-time → back returns to menu

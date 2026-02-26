@@ -141,12 +141,12 @@ async function scanDirectory(
   }
 }
 
-export function findXcliDir(cwd: string): string | null {
+export function findZcliDir(cwd: string): string | null {
   let dir = cwd;
   while (true) {
-    const candidate = join(dir, ".xcli");
+    const candidate = join(dir, ".zcli");
     if (Bun.file(join(candidate, "actions")).name) {
-      // Check if .xcli directory exists by trying to access it
+      // Check if .zcli directory exists by trying to access it
       try {
         const stat = require("node:fs").statSync(candidate);
         if (stat.isDirectory()) return candidate;

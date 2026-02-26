@@ -1,5 +1,5 @@
 import type { Subprocess } from "bun";
-import type { Action, Runtime, XcliConfig } from "../types.ts";
+import type { Action, Runtime, ZcliConfig } from "../types.ts";
 
 export interface RunHandle {
   proc: Subprocess;
@@ -9,7 +9,7 @@ export interface RunHandle {
 
 export function runAction(
   action: Action,
-  options: { cwd: string; config?: XcliConfig },
+  options: { cwd: string; config?: ZcliConfig },
 ): RunHandle {
   const { cwd, config } = options;
 
