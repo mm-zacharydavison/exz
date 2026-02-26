@@ -148,13 +148,29 @@ kadai                    # Interactive menu
 kadai list --json        # List actions as JSON
 kadai list --json --all  # Include hidden actions
 kadai run <action-id>    # Run an action directly
+kadai mcp                # Start MCP server (creates .mcp.json)
 ```
 
 ## AI
 
 kadai is designed to work well with AI coding agents like Claude Code.
 
-### How It Works
+### MCP Server
+
+kadai includes a built-in [MCP](https://modelcontextprotocol.io/) server that exposes your actions as tools. Any MCP-compatible client (Claude Code, Claude Desktop, etc.) can auto-discover and run your project's actions.
+
+kadai will automatically configure a `.mcp.json` file in your project root so Claude can automatically discover any `kadai` actions you define.
+
+```bash
+kadai mcp
+```
+
+This creates the `.mcp.json` in your project root if it doesn't already exist (so `claude` will autodiscover it.)
+It then starts the `mcp` server (this is the command `claude` uses to invoke `kadai` MCP.)
+
+Each action becomes an MCP tool. Nested action IDs use `--` as a separator (e.g. `database/reset` becomes the tool `database--reset`) since MCP tool names don't allow slashes.
+
+### JSON API
 
 - `kadai list --json` gives agents a machine-readable list of available project actions
 - `kadai run <action-id>` runs actions non-interactively (confirmation prompts auto-skip in non-TTY)

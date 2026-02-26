@@ -2,6 +2,7 @@ export type ParsedArgs =
   | { type: "interactive" }
   | { type: "list"; all: boolean }
   | { type: "run"; actionId: string }
+  | { type: "mcp" }
   | { type: "error"; message: string };
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -31,10 +32,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
       return { type: "run", actionId };
     }
 
+    case "mcp":
+      return { type: "mcp" };
+
     default:
       return {
         type: "error",
-        message: `Unknown command: ${command}. Available commands: list, run`,
+        message: `Unknown command: ${command}. Available commands: list, run, mcp`,
       };
   }
 }

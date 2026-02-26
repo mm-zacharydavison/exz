@@ -11,6 +11,19 @@ if (parsed.type === "error") {
   process.exit(1);
 }
 
+if (parsed.type === "mcp") {
+  const { ensureMcpConfig, startMcpServer } = await import("./core/mcp.ts");
+  const kadaiDir = findZcliDir(cwd);
+  const projectRoot = kadaiDir
+    ? (await import("node:path")).dirname(kadaiDir)
+    : cwd;
+  await ensureMcpConfig(projectRoot);
+  await startMcpServer(kadaiDir, cwd);
+  // Keep the process alive — the stdio transport holds the event loop open,
+  // but we must prevent the script from falling through to the TUI code below.
+  await new Promise(() => {});
+}
+
 if (parsed.type === "list" || parsed.type === "run") {
   const kadaiDir = findZcliDir(cwd);
   if (!kadaiDir) {

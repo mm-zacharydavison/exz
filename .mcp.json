@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kadai": {
+      "command": "bun",
+      "args": [
+        "/home/z/Desktop/work/kadai/src/cli.tsx",
+        "mcp"
+      ]
+    }
+  }
+}

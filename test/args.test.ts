@@ -47,6 +47,10 @@ describe("parseArgs", () => {
     }
   });
 
+  test("mcp → mcp", () => {
+    expect(parseArgs(["mcp"])).toEqual({ type: "mcp" });
+  });
+
   test("unknown command → error", () => {
     const result = parseArgs(["foobar"]);
     expect(result.type).toBe("error");
