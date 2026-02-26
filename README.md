@@ -2,7 +2,10 @@
 
 # kadai
 
-Drop scripts into `.kadai/actions/`, share them with your team, and automatically make them discoverable by AI.
+1. Drop scripts into `.kadai/actions/`,
+2. Run with `bunx kadai`, s
+3. Share them with your team in the repo.
+4. Automatically make them discoverable by AI.
 
 ## Getting Started
 
