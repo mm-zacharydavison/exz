@@ -2,7 +2,7 @@
 
 # kadai
 
-A terminal UI for discovering and running project scripts. Drop scripts into `.kadai/actions/`, and kadai gives you a fuzzy-searchable menu to run them.
+Drop scripts into `.kadai/actions/`, share them with your team, and automatically make them discoverable by AI.
 
 ## Getting Started
 
