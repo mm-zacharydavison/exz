@@ -6,7 +6,7 @@ A terminal UI for discovering and running project scripts. Drop scripts into `.k
 
 ## Getting Started
 
-<img width="950" height="205" alt="image" src="https://github.com/user-attachments/assets/b694bfaa-146b-41c7-a44c-d197c7cea08e" />
+<img width="919" height="228" alt="image" src="https://github.com/user-attachments/assets/82fa8856-a500-4737-a3d9-34ec12b45272" />
 
 ```bash
 bunx kadai
