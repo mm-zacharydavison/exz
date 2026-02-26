@@ -74,15 +74,15 @@ describe("action discovery", () => {
     await cli.waitForText("No actions found");
   });
 
-  test("shows error when no .exz directory exists", async () => {
-    // Use a temp dir so findZcliDir can't walk up into a real .exz
-    const tempDir = await mkdtemp(join(tmpdir(), "exz-no-dir-"));
+  test("shows error when no .menux directory exists", async () => {
+    // Use a temp dir so findZcliDir can't walk up into a real .menux
+    const tempDir = await mkdtemp(join(tmpdir(), "menux-no-dir-"));
     try {
       cli = spawnCLI({ cwd: tempDir });
       const result = await cli.waitForExit();
       // Should exit with error and helpful message
       expect(result.exitCode).not.toBe(0);
-      expect(result.output + result.stderr).toContain(".exz");
+      expect(result.output + result.stderr).toContain(".menux");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

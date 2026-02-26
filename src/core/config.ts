@@ -1,13 +1,13 @@
 import { join } from "node:path";
-import type { ExzConfig } from "../types.ts";
+import type { MenuxConfig } from "../types.ts";
 
-const DEFAULT_CONFIG: ExzConfig = {
+const DEFAULT_CONFIG: MenuxConfig = {
   actionsDir: "actions",
   env: {},
 };
 
-export async function loadConfig(exzDir: string): Promise<ExzConfig> {
-  const configPath = join(exzDir, "config.ts");
+export async function loadConfig(menuxDir: string): Promise<MenuxConfig> {
+  const configPath = join(menuxDir, "config.ts");
   const configFile = Bun.file(configPath);
 
   if (!(await configFile.exists())) {
@@ -15,7 +15,7 @@ export async function loadConfig(exzDir: string): Promise<ExzConfig> {
   }
 
   const mod = await import(configPath);
-  const userConfig: ExzConfig = mod.default ?? mod;
+  const userConfig: MenuxConfig = mod.default ?? mod;
 
   return {
     actionsDir: userConfig.actionsDir ?? DEFAULT_CONFIG.actionsDir,

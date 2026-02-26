@@ -82,9 +82,9 @@ export type Screen =
   /** Confirmation prompt before running an action */
   | { type: "confirm"; actionId: string };
 
-export interface ExzConfig {
+export interface MenuxConfig {
   /**
-   * Subdirectory name under `.exz/` containing actions
+   * Subdirectory name under `.menux/` containing actions
    * @default "actions"
    */
   actionsDir?: string;

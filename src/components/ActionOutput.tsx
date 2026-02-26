@@ -1,11 +1,11 @@
 import { Box, Text } from "ink";
 import { useActionRunner } from "../hooks/useActionRunner.ts";
-import type { Action, ExzConfig } from "../types.ts";
+import type { Action, MenuxConfig } from "../types.ts";
 
 interface ActionOutputProps {
   action: Action;
   cwd: string;
-  config?: ExzConfig;
+  config?: MenuxConfig;
   onRunningChange?: (running: boolean) => void;
 }
 

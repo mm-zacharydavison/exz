@@ -1,6 +1,6 @@
 import type { ActionMeta } from "../types.ts";
 
-const META_PATTERN = /^(?:#|\/\/)\s*exz:(\w+)\s+(.+)$/;
+const META_PATTERN = /^(?:#|\/\/)\s*menux:(\w+)\s+(.+)$/;
 const MAX_SCAN_LINES = 20;
 
 function parseMetadataFromContent(content: string): Partial<ActionMeta> {

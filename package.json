@@ -1,9 +1,9 @@
 {
-  "name": "exz",
+  "name": "menux",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "exz": "./dist/cli.js"
+    "menux": "./dist/cli.js"
   },
   "scripts": {
     "build": "bun build.ts",

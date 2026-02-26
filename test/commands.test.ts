@@ -6,7 +6,7 @@ import { fixturePath, spawnCLI } from "./harness.ts";
 
 // ─── list --json ─────────────────────────────────────────────────
 
-describe("exz list --json", () => {
+describe("menux list --json", () => {
   test("outputs valid JSON with correct fields", async () => {
     const session = spawnCLI({
       cwd: fixturePath("basic-repo"),
@@ -82,9 +82,9 @@ describe("exz list --json", () => {
     expect(ids).toContain("secret-tool");
   });
 
-  test("exits 1 with error when no .exz dir", async () => {
-    // Use a temp dir so findZcliDir can't find .exz by searching upward
-    const tmpDir = mkdtempSync(join(tmpdir(), "exz-no-dir-"));
+  test("exits 1 with error when no .menux dir", async () => {
+    // Use a temp dir so findZcliDir can't find .menux by searching upward
+    const tmpDir = mkdtempSync(join(tmpdir(), "menux-no-dir-"));
     try {
       const session = spawnCLI({
         cwd: tmpDir,
@@ -92,7 +92,7 @@ describe("exz list --json", () => {
       });
       const { exitCode, stderr } = await session.waitForExit();
       expect(exitCode).toBe(1);
-      expect(stderr).toContain(".exz");
+      expect(stderr).toContain(".menux");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -101,7 +101,7 @@ describe("exz list --json", () => {
 
 // ─── run <action-id> ─────────────────────────────────────────────
 
-describe("exz run <action-id>", () => {
+describe("menux run <action-id>", () => {
   test("runs hello and outputs greeting", async () => {
     const session = spawnCLI({
       cwd: fixturePath("basic-repo"),
@@ -109,7 +109,7 @@ describe("exz run <action-id>", () => {
     });
     const { exitCode, output } = await session.waitForExit();
     expect(exitCode).toBe(0);
-    expect(output).toContain("Hello from exz!");
+    expect(output).toContain("Hello from menux!");
   });
 
   test("runs nested action (database/migrate)", async () => {
@@ -132,8 +132,8 @@ describe("exz run <action-id>", () => {
     expect(stderr).toContain("nonexistent");
   });
 
-  test("exits 1 with error when no .exz dir", async () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "exz-no-dir-"));
+  test("exits 1 with error when no .menux dir", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "menux-no-dir-"));
     try {
       const session = spawnCLI({
         cwd: tmpDir,
@@ -141,7 +141,7 @@ describe("exz run <action-id>", () => {
       });
       const { exitCode, stderr } = await session.waitForExit();
       expect(exitCode).toBe(1);
-      expect(stderr).toContain(".exz");
+      expect(stderr).toContain(".menux");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
