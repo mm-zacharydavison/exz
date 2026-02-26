@@ -26,14 +26,14 @@ export function InitWizard({ cwd, onDone }: InitWizardProps) {
     writeInitFiles(cwd).then((result) => {
       setWriteResult(result);
       setPhase("done");
-      onDone({ zcliDir: `${cwd}/.zcli` });
+      onDone({ exzDir: `${cwd}/.exz` });
     });
   }
 
   return (
     <Box flexDirection="column" paddingLeft={2}>
       <Box marginBottom={1}>
-        <Text>No .zcli directory found. Let's set one up.</Text>
+        <Text>No .exz directory found. Let's set one up.</Text>
       </Box>
 
       {phase === "writing" && <Spinner label="Writing files..." />}

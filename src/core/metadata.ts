@@ -1,6 +1,6 @@
 import type { ActionMeta } from "../types.ts";
 
-const XCLI_PATTERN = /^(?:#|\/\/)\s*zcli:(\w+)\s+(.+)$/;
+const META_PATTERN = /^(?:#|\/\/)\s*exz:(\w+)\s+(.+)$/;
 const MAX_SCAN_LINES = 20;
 
 function parseMetadataFromContent(content: string): Partial<ActionMeta> {
@@ -8,7 +8,7 @@ function parseMetadataFromContent(content: string): Partial<ActionMeta> {
   const meta: Partial<ActionMeta> = {};
 
   for (const line of lines) {
-    const match = line.match(XCLI_PATTERN);
+    const match = line.match(META_PATTERN);
     if (!match) continue;
 
     const key = match[1];

@@ -2,12 +2,12 @@ import type { FileSink } from "bun";
 import { useInput } from "ink";
 import { useEffect, useRef, useState } from "react";
 import { runAction } from "../core/runner.ts";
-import type { Action, ZcliConfig } from "../types.ts";
+import type { Action, ExzConfig } from "../types.ts";
 
 interface UseActionRunnerOptions {
   action: Action | null;
   cwd: string;
-  config?: ZcliConfig;
+  config?: ExzConfig;
   enabled?: boolean;
   onRunningChange?: (running: boolean) => void;
 }

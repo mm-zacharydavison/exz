@@ -1,5 +1,5 @@
 import type { FileSink, Subprocess } from "bun";
-import type { Action, Runtime, ZcliConfig } from "../types.ts";
+import type { Action, ExzConfig, Runtime } from "../types.ts";
 
 export interface RunHandle {
   proc: Subprocess;
@@ -10,7 +10,7 @@ export interface RunHandle {
 
 export function runAction(
   action: Action,
-  options: { cwd: string; config?: ZcliConfig },
+  options: { cwd: string; config?: ExzConfig },
 ): RunHandle {
   const { cwd, config } = options;
 

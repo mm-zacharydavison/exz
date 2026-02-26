@@ -4,20 +4,20 @@ import { loadActions } from "./loader.ts";
 import { resolveCommand } from "./runner.ts";
 
 interface ListOptions {
-  zcliDir: string;
+  exzDir: string;
   all: boolean;
 }
 
 interface RunOptions {
-  zcliDir: string;
+  exzDir: string;
   actionId: string;
   cwd: string;
 }
 
 export async function handleList(options: ListOptions): Promise<never> {
-  const { zcliDir, all } = options;
-  const config = await loadConfig(zcliDir);
-  const actionsDir = join(zcliDir, config.actionsDir ?? "actions");
+  const { exzDir, all } = options;
+  const config = await loadConfig(exzDir);
+  const actionsDir = join(exzDir, config.actionsDir ?? "actions");
   const actions = await loadActions(actionsDir);
 
   const filtered = all ? actions : actions.filter((a) => !a.meta.hidden);
@@ -37,9 +37,9 @@ export async function handleList(options: ListOptions): Promise<never> {
 }
 
 export async function handleRun(options: RunOptions): Promise<never> {
-  const { zcliDir, actionId, cwd } = options;
-  const config = await loadConfig(zcliDir);
-  const actionsDir = join(zcliDir, config.actionsDir ?? "actions");
+  const { exzDir, actionId, cwd } = options;
+  const config = await loadConfig(exzDir);
+  const actionsDir = join(exzDir, config.actionsDir ?? "actions");
   const actions = await loadActions(actionsDir);
 
   const action = actions.find((a) => a.id === actionId);

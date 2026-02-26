@@ -1,4 +1,4 @@
-# zcli
+# exz
 
 To install dependencies:
 

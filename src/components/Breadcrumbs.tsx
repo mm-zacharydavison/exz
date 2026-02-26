@@ -5,7 +5,7 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ path }: BreadcrumbsProps) {
-  const parts = ["zcli", ...path];
+  const parts = ["exz", ...path];
   return (
     <Box marginBottom={1}>
       <Text dimColor>{parts.join(" > ")}</Text>

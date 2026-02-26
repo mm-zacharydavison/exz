@@ -1,13 +1,13 @@
 import { join } from "node:path";
-import type { ZcliConfig } from "../types.ts";
+import type { ExzConfig } from "../types.ts";
 
-const DEFAULT_CONFIG: ZcliConfig = {
+const DEFAULT_CONFIG: ExzConfig = {
   actionsDir: "actions",
   env: {},
 };
 
-export async function loadConfig(zcliDir: string): Promise<ZcliConfig> {
-  const configPath = join(zcliDir, "config.ts");
+export async function loadConfig(exzDir: string): Promise<ExzConfig> {
+  const configPath = join(exzDir, "config.ts");
   const configFile = Bun.file(configPath);
 
   if (!(await configFile.exists())) {
@@ -15,7 +15,7 @@ export async function loadConfig(zcliDir: string): Promise<ZcliConfig> {
   }
 
   const mod = await import(configPath);
-  const userConfig: ZcliConfig = mod.default ?? mod;
+  const userConfig: ExzConfig = mod.default ?? mod;
 
   return {
     actionsDir: userConfig.actionsDir ?? DEFAULT_CONFIG.actionsDir,

@@ -1,9 +1,9 @@
 {
-  "name": "zcli",
+  "name": "exz",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "zcli": "./dist/cli.js"
+    "exz": "./dist/cli.js"
   },
   "scripts": {
     "build": "bun build.ts",

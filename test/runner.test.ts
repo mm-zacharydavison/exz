@@ -17,7 +17,7 @@ describe("script execution", () => {
     cli.type("/");
     cli.type("Hello World");
     cli.press(Keys.ENTER);
-    await cli.waitForText("Hello from zcli!");
+    await cli.waitForText("Hello from exz!");
   });
 
   test("runs a typescript script via bun and displays output", async () => {
@@ -57,7 +57,7 @@ describe("script execution", () => {
     cli.type("/");
     cli.type("Hello World");
     cli.press(Keys.ENTER);
-    await cli.waitForText("Hello from zcli!");
+    await cli.waitForText("Hello from exz!");
     // Should indicate success (exit code 0)
     await cli.waitForText("exit code 0");
   });

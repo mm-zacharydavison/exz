@@ -6,7 +6,7 @@ import { fixturePath, spawnCLI } from "./harness.ts";
 
 // ─── list --json ─────────────────────────────────────────────────
 
-describe("zcli list --json", () => {
+describe("exz list --json", () => {
   test("outputs valid JSON with correct fields", async () => {
     const session = spawnCLI({
       cwd: fixturePath("basic-repo"),
@@ -82,9 +82,9 @@ describe("zcli list --json", () => {
     expect(ids).toContain("secret-tool");
   });
 
-  test("exits 1 with error when no .zcli dir", async () => {
-    // Use a temp dir so findZcliDir can't find .zcli by searching upward
-    const tmpDir = mkdtempSync(join(tmpdir(), "zcli-no-dir-"));
+  test("exits 1 with error when no .exz dir", async () => {
+    // Use a temp dir so findZcliDir can't find .exz by searching upward
+    const tmpDir = mkdtempSync(join(tmpdir(), "exz-no-dir-"));
     try {
       const session = spawnCLI({
         cwd: tmpDir,
@@ -92,7 +92,7 @@ describe("zcli list --json", () => {
       });
       const { exitCode, stderr } = await session.waitForExit();
       expect(exitCode).toBe(1);
-      expect(stderr).toContain(".zcli");
+      expect(stderr).toContain(".exz");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -101,7 +101,7 @@ describe("zcli list --json", () => {
 
 // ─── run <action-id> ─────────────────────────────────────────────
 
-describe("zcli run <action-id>", () => {
+describe("exz run <action-id>", () => {
   test("runs hello and outputs greeting", async () => {
     const session = spawnCLI({
       cwd: fixturePath("basic-repo"),
@@ -109,7 +109,7 @@ describe("zcli run <action-id>", () => {
     });
     const { exitCode, output } = await session.waitForExit();
     expect(exitCode).toBe(0);
-    expect(output).toContain("Hello from zcli!");
+    expect(output).toContain("Hello from exz!");
   });
 
   test("runs nested action (database/migrate)", async () => {
@@ -132,8 +132,8 @@ describe("zcli run <action-id>", () => {
     expect(stderr).toContain("nonexistent");
   });
 
-  test("exits 1 with error when no .zcli dir", async () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "zcli-no-dir-"));
+  test("exits 1 with error when no .exz dir", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "exz-no-dir-"));
     try {
       const session = spawnCLI({
         cwd: tmpDir,
@@ -141,7 +141,7 @@ describe("zcli run <action-id>", () => {
       });
       const { exitCode, stderr } = await session.waitForExit();
       expect(exitCode).toBe(1);
-      expect(stderr).toContain(".zcli");
+      expect(stderr).toContain(".exz");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
