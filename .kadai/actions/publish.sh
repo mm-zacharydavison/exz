@@ -3,7 +3,6 @@
 # kadai:emoji 📦
 # kadai:description Publish kadai to npm using pubz
 # kadai:confirm true
-# kadai:interactive true
 
 set -euo pipefail
 

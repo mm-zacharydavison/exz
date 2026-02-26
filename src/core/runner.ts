@@ -1,40 +1,4 @@
-import type { FileSink, Subprocess } from "bun";
-import type { Action, KadaiConfig, Runtime } from "../types.ts";
-
-export interface RunHandle {
-  proc: Subprocess;
-  stdout: ReadableStream<Uint8Array>;
-  stderr: ReadableStream<Uint8Array>;
-  stdin: FileSink;
-}
-
-export function runAction(
-  action: Action,
-  options: { cwd: string; config?: KadaiConfig },
-): RunHandle {
-  const { cwd, config } = options;
-
-  const cmd = resolveCommand(action);
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    ...(config?.env ?? {}),
-  };
-
-  const proc = Bun.spawn(cmd, {
-    cwd,
-    stdin: "pipe",
-    stdout: "pipe",
-    stderr: "pipe",
-    env,
-  });
-
-  return {
-    proc,
-    stdout: proc.stdout as ReadableStream<Uint8Array>,
-    stderr: proc.stderr as ReadableStream<Uint8Array>,
-    stdin: proc.stdin as FileSink,
-  };
-}
+import type { Action, Runtime } from "../types.ts";
 
 // Bun.which() result cache to avoid repeated PATH lookups
 const whichCache = new Map<string, string | null>();

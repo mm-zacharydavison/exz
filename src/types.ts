@@ -15,13 +15,6 @@ export interface ActionMeta {
    * @default false
    */
   hidden?: boolean;
-  /**
-   * Run with inherited stdio instead of piped output.
-   * Enables interactive prompts (readline, password input, etc.)
-   * by temporarily exiting the TUI.
-   * @default false
-   */
-  interactive?: boolean;
 }
 
 export interface Action {
@@ -77,8 +70,6 @@ export interface MenuItem {
 export type Screen =
   /** Menu listing actions/categories at a given path */
   | { type: "menu"; path: string[] }
-  /** Output display for a running or completed action */
-  | { type: "output"; actionId: string }
   /** Confirmation prompt before running an action */
   | { type: "confirm"; actionId: string };
 

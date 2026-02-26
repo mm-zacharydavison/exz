@@ -51,15 +51,15 @@ describe("script execution", () => {
     await cli.waitForText("Seed complete.");
   });
 
-  test("displays exit code 0 on successful completion", async () => {
+  test("exits with the action's exit code", async () => {
     cli = spawnCLI({ cwd: fixturePath("basic-repo") });
     await cli.waitForText("Hello World");
     cli.type("/");
     cli.type("Hello World");
     cli.press(Keys.ENTER);
     await cli.waitForText("Hello from kadai!");
-    // Should indicate success (exit code 0)
-    await cli.waitForText("exit code 0");
+    const { exitCode } = await cli.waitForExit();
+    expect(exitCode).toBe(0);
   });
 
   test("streams output incrementally", async () => {

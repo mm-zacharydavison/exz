@@ -49,7 +49,8 @@ if (!kadaiDir) {
   const result = await writeInitFiles(cwd);
   console.log("  Created .kadai/config.ts");
   if (result.sampleCreated) console.log("  Created .kadai/actions/hello.sh");
-  if (result.skillCreated) console.log("  Created .claude/skills/kadai/SKILL.md");
+  if (result.skillCreated)
+    console.log("  Created .claude/skills/kadai/SKILL.md");
   console.log("\nDone! Run kadai again to get started.");
   process.exit(0);
 }
@@ -153,77 +154,66 @@ function createStdinStream(): NodeJS.ReadStream {
   return charStream as unknown as NodeJS.ReadStream;
 }
 
-let pendingInteractiveAction: Action | null = null;
+let selectedAction: Action | null = null;
 
-// Loop: render TUI → run interactive action → re-render TUI
-while (true) {
-  pendingInteractiveAction = null;
-  const stdinStream = createStdinStream();
+const stdinStream = createStdinStream();
 
-  const instance = render(
-    React.createElement(App, {
-      cwd,
-      kadaiDir,
-      onRunInteractive: (action: Action) => {
-        pendingInteractiveAction = action;
-      },
-    }),
-    {
-      stdin: stdinStream,
-      stdout: process.stdout,
-      stderr: process.stderr,
+const instance = render(
+  React.createElement(App, {
+    kadaiDir,
+    onRunAction: (action: Action) => {
+      selectedAction = action;
     },
-  );
+  }),
+  {
+    stdin: stdinStream,
+    stdout: process.stdout,
+    stderr: process.stderr,
+  },
+);
 
-  await instance.waitUntilExit();
+await instance.waitUntilExit();
 
-  if (!pendingInteractiveAction) break;
+if (!selectedAction) process.exit(0);
 
-  // Run the interactive action with full stdio passthrough
-  // TS narrows to `never` after the break because it can't see the callback mutation
-  const action: Action = pendingInteractiveAction;
-  const config = await loadConfig(kadaiDir);
-  const cmd = resolveCommand(action);
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    ...(config.env ?? {}),
-  };
+// Run the selected action, replacing the kadai process
+const action: Action = selectedAction;
+const config = await loadConfig(kadaiDir);
+const cmd = resolveCommand(action);
+const env: Record<string, string> = {
+  ...(process.env as Record<string, string>),
+  ...(config.env ?? {}),
+};
 
-  console.log(
-    `${action.meta.emoji ? `${action.meta.emoji} ` : ""}${action.meta.name}\n`,
-  );
+console.log(
+  `${action.meta.emoji ? `${action.meta.emoji} ` : ""}${action.meta.name}\n`,
+);
 
-  // Ink removes its listeners but never pauses stdin. The stream may still
-  // be polling fd 0 in the event loop, racing with the child process that
-  // inherits the same fd. Explicitly pause to give the child exclusive access.
-  process.stdin.pause();
+// Remove leftover stdin listeners from createStdinStream so they
+// don't interfere with forwarding.
+process.stdin.removeAllListeners("data");
 
-  const proc = Bun.spawn(cmd, {
-    cwd,
-    stdout: "inherit",
-    stderr: "inherit",
-    stdin: "inherit",
-    env,
-  });
+const proc = Bun.spawn(cmd, {
+  cwd,
+  stdout: "inherit",
+  stderr: "inherit",
+  stdin: "pipe",
+  env,
+});
 
-  const exitCode = await proc.exited;
+// Forward stdin to child, converting \r to \n since the terminal
+// is in raw mode (sends \r for Enter) but the child expects cooked input.
+const forwardStdin = (data: Buffer) => {
+  try {
+    const converted = Buffer.from(data.toString().replace(/\r/g, "\n"));
+    proc.stdin.write(converted);
+    proc.stdin.flush();
+  } catch {
+    // Child already exited
+  }
+};
+process.stdin.on("data", forwardStdin);
+process.stdin.resume();
 
-  // Resume stdin so we can listen for the "press enter" keypress
-  process.stdin.resume();
-
-  const color = exitCode === 0 ? "\x1b[32m" : "\x1b[31m";
-  const symbol = exitCode === 0 ? "✓" : "✗";
-  console.log(`\n${color}${symbol} exit code ${exitCode}\x1b[0m`);
-  console.log("\nPress enter to return to menu...");
-
-  // Wait for user to press enter before re-rendering the TUI
-  await new Promise<void>((resolve) => {
-    const onData = () => {
-      process.stdin.removeListener("data", onData);
-      resolve();
-    };
-    process.stdin.on("data", onData);
-  });
-}
-
-process.exit(0);
+const exitCode = await proc.exited;
+process.exit(exitCode);

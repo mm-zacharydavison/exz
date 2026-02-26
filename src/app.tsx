@@ -1,7 +1,5 @@
 import { ConfirmInput } from "@inkjs/ui";
 import { Box, Text, useApp } from "ink";
-import { useState } from "react";
-import { ActionOutput } from "./components/ActionOutput.tsx";
 import { Breadcrumbs } from "./components/Breadcrumbs.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { useActions } from "./hooks/useActions.ts";
@@ -53,26 +51,22 @@ function MenuList({
 }
 
 interface AppProps {
-  cwd: string;
   kadaiDir: string;
-  /** Called when an interactive action needs to run with inherited stdio */
-  onRunInteractive?: (action: Action) => void;
+  /** Called when an action is selected to run with inherited stdio */
+  onRunAction: (action: Action) => void;
 }
 
-export function App({ cwd, kadaiDir, onRunInteractive }: AppProps) {
+export function App({ kadaiDir, onRunAction }: AppProps) {
   const { exit } = useApp();
-  const [isProcessRunning, setIsProcessRunning] = useState(false);
 
-  const handleRunInteractive = onRunInteractive
-    ? (action: Action) => {
-        onRunInteractive(action);
-        exit();
-      }
-    : undefined;
+  const handleRunAction = (action: Action) => {
+    onRunAction(action);
+    exit();
+  };
 
   const search = useSearch();
   const nav = useNavigation({ onExit: exit, onNavigate: search.resetSearch });
-  const { actions, actionsRef, config, loading } = useActions({
+  const { actions, actionsRef, loading } = useActions({
     kadaiDir,
   });
 
@@ -91,8 +85,8 @@ export function App({ cwd, kadaiDir, onRunInteractive }: AppProps) {
     exit,
     getMenuItems: buildMenuItems,
     computeFiltered: search.computeFiltered,
-    isActive: nav.currentScreen.type !== "confirm" && !isProcessRunning,
-    onRunInteractive: handleRunInteractive,
+    isActive: nav.currentScreen.type !== "confirm",
+    onRunInteractive: handleRunAction,
   });
 
   if (loading) {
@@ -144,15 +138,7 @@ export function App({ cwd, kadaiDir, onRunInteractive }: AppProps) {
     if (!action) return <Text color="red">Action not found</Text>;
 
     const handleConfirm = () => {
-      if (action.meta.interactive && handleRunInteractive) {
-        handleRunInteractive(action);
-        return;
-      }
-      nav.setStack((s) => {
-        const next = [...s.slice(0, -1), { type: "output" as const, actionId }];
-        nav.stackRef.current = next;
-        return next;
-      });
+      handleRunAction(action);
     };
 
     return (
@@ -165,26 +151,6 @@ export function App({ cwd, kadaiDir, onRunInteractive }: AppProps) {
             onConfirm={handleConfirm}
             onCancel={() => nav.popScreen()}
           />
-        </Box>
-      </Box>
-    );
-  }
-
-  if (nav.currentScreen.type === "output") {
-    const { actionId } = nav.currentScreen;
-    const action = actions.find((a) => a.id === actionId);
-    if (!action) return <Text color="red">Action not found</Text>;
-
-    return (
-      <Box flexDirection="column">
-        <ActionOutput
-          action={action}
-          cwd={cwd}
-          config={config}
-          onRunningChange={setIsProcessRunning}
-        />
-        <Box marginTop={1}>
-          <Text dimColor>Press enter or esc to go back</Text>
         </Box>
       </Box>
     );

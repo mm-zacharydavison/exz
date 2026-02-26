@@ -30,9 +30,6 @@ function parseMetadataFromContent(content: string): Partial<ActionMeta> {
       case "hidden":
         meta.hidden = value.trim() === "true";
         break;
-      case "interactive":
-        meta.interactive = value.trim() === "true";
-        break;
     }
   }
 
@@ -60,7 +57,6 @@ export async function extractMetadata(filePath: string): Promise<ActionMeta> {
       description: frontmatter.description,
       confirm: frontmatter.confirm ?? false,
       hidden: frontmatter.hidden ?? false,
-      interactive: frontmatter.interactive ?? false,
     };
   }
 
@@ -69,6 +65,5 @@ export async function extractMetadata(filePath: string): Promise<ActionMeta> {
     name: inferNameFromFilename(filename),
     confirm: false,
     hidden: false,
-    interactive: false,
   };
 }

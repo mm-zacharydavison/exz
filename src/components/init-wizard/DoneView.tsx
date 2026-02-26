@@ -6,7 +6,9 @@ export function DoneView({ result }: { result: WriteInitFilesResult }) {
     <Box flexDirection="column">
       <Text>Created .kadai/config.ts</Text>
       {result.sampleCreated && <Text>Created .kadai/actions/hello.sh</Text>}
-      {result.skillCreated && <Text>Created .claude/skills/kadai/SKILL.md</Text>}
+      {result.skillCreated && (
+        <Text>Created .claude/skills/kadai/SKILL.md</Text>
+      )}
       <Text>{"\n"}Done! Run kadai again to get started.</Text>
     </Box>
   );

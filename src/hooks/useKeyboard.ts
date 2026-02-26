@@ -34,7 +34,7 @@ interface UseKeyboardOptions {
   getMenuItems: (actions: Action[], path: string[]) => MenuItem[];
   computeFiltered: (items: MenuItem[], query: string) => MenuItem[];
   isActive?: boolean;
-  onRunInteractive?: (action: Action) => void;
+  onRunInteractive: (action: Action) => void;
 }
 
 export function useKeyboard({
@@ -59,13 +59,6 @@ export function useKeyboard({
     (input, key) => {
       const screen = stackRef.current.at(-1) as Screen;
 
-      // Output screen: ESC or Enter to go back
-      if (screen.type === "output") {
-        if (key.escape || key.return) popScreen();
-        return;
-      }
-
-      // From here, screen must be "menu"
       if (screen.type !== "menu") return;
 
       // Menu screen — search mode
@@ -156,6 +149,7 @@ export function useKeyboard({
           getMenuItems,
           computeFiltered,
           pushScreen,
+          onRunInteractive,
         );
         return;
       }
@@ -194,7 +188,7 @@ function selectCurrentItem(
   getMenuItems: (actions: Action[], path: string[]) => MenuItem[],
   computeFiltered: (items: MenuItem[], query: string) => MenuItem[],
   pushScreen: (screen: Screen) => void,
-  onRunInteractive?: (action: Action) => void,
+  onRunInteractive: (action: Action) => void,
 ) {
   const menuPath = screen.path;
   const allItems = getMenuItems(actionsRef.current, menuPath);
@@ -208,10 +202,8 @@ function selectCurrentItem(
     const action = actionsRef.current.find((a) => a.id === item.value);
     if (action?.meta.confirm) {
       pushScreen({ type: "confirm", actionId: item.value });
-    } else if (action?.meta.interactive && onRunInteractive) {
+    } else if (action) {
       onRunInteractive(action);
-    } else {
-      pushScreen({ type: "output", actionId: item.value });
     }
   }
 }
