@@ -16,6 +16,11 @@ const stubDevtools: BunPlugin = {
   },
 };
 
+// React, Ink, and related packages must stay external so that dynamically
+// imported .tsx actions resolve the same module instances at runtime.
+// Bundling them would create a second React copy, breaking hooks.
+const external = ["react", "react/jsx-runtime", "react/jsx-dev-runtime", "ink", "@inkjs/ui"];
+
 const result = await Bun.build({
   entrypoints: ["./src/cli.tsx"],
   outdir: "./dist",
@@ -23,6 +28,7 @@ const result = await Bun.build({
   minify: false,
   format: "esm",
   plugins: [stubDevtools],
+  external,
 });
 
 if (!result.success) {

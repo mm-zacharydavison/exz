@@ -49,6 +49,7 @@ const RUNTIME_CHAINS: Record<Runtime, string[][]> = {
   bash: [["bash"]],
   bun: [["bun", "run"]],
   node: [["bun", "run"], ["node"]],
+  ink: [],
   executable: [],
 };
 
@@ -58,6 +59,7 @@ const FALLBACK_COMMANDS: Record<Runtime, (filePath: string) => string[]> = {
   bash: (fp) => ["bash", fp],
   python: (fp) => ["python3", fp],
   node: (fp) => ["node", fp],
+  ink: (fp) => ["bun", "run", fp],
   executable: (fp) => [fp],
 };
 

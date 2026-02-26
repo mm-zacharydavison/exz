@@ -5,6 +5,7 @@ import { extractMetadata } from "./metadata.ts";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".ts",
+  ".tsx",
   ".sh",
   ".bash",
   ".py",
@@ -25,6 +26,8 @@ async function readShebang(filePath: string): Promise<string | undefined> {
 
 function runtimeFromExtension(ext: string): Runtime {
   switch (ext) {
+    case ".tsx":
+      return "ink";
     case ".ts":
     case ".js":
     case ".mjs":

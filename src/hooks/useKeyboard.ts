@@ -202,6 +202,8 @@ function selectCurrentItem(
     const action = actionsRef.current.find((a) => a.id === item.value);
     if (action?.meta.confirm) {
       pushScreen({ type: "confirm", actionId: item.value });
+    } else if (action?.runtime === "ink") {
+      pushScreen({ type: "ink-component", actionId: item.value });
     } else if (action) {
       onRunInteractive(action);
     }

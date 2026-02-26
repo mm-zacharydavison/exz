@@ -127,7 +127,7 @@ kadai run database/reset
 
 ## Creating Actions
 
-Create a script file in \`.kadai/actions/\`. Supported extensions: \`.sh\`, \`.bash\`, \`.ts\`, \`.js\`, \`.mjs\`, \`.py\`.
+Create a script file in \`.kadai/actions/\`. Supported extensions: \`.sh\`, \`.bash\`, \`.ts\`, \`.js\`, \`.mjs\`, \`.py\`, \`.tsx\`.
 
 Add metadata as comments in the first 20 lines using \`# kadai:<key> <value>\` (for shell/python) or \`// kadai:<key> <value>\` (for JS/TS):
 
@@ -150,6 +150,7 @@ Available metadata keys:
 | \`description\` | Short description                           |
 | \`confirm\`     | Require confirmation before running (true/false) |
 | \`hidden\`      | Hide from default listing (true/false)      |
+| \`fullscreen\`  | Use alternate screen buffer for ink actions (true/false) |
 
 If \`name\` is omitted, it is inferred from the filename (e.g. \`deploy-staging.sh\` → "Deploy Staging").
 

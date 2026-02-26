@@ -1,6 +1,8 @@
 import { ConfirmInput } from "@inkjs/ui";
 import { Box, Text, useApp } from "ink";
 import { Breadcrumbs } from "./components/Breadcrumbs.tsx";
+import { FullscreenProvider } from "./components/FullscreenProvider.tsx";
+import { InkActionRenderer } from "./components/InkActionRenderer.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
 import { useActions } from "./hooks/useActions.ts";
 import { useKeyboard } from "./hooks/useKeyboard.ts";
@@ -66,7 +68,7 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
 
   const search = useSearch();
   const nav = useNavigation({ onExit: exit, onNavigate: search.resetSearch });
-  const { actions, actionsRef, loading } = useActions({
+  const { actions, actionsRef, config, loading } = useActions({
     kadaiDir,
   });
 
@@ -85,7 +87,7 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     exit,
     getMenuItems: buildMenuItems,
     computeFiltered: search.computeFiltered,
-    isActive: nav.currentScreen.type !== "confirm",
+    isActive: nav.currentScreen.type === "menu",
     onRunInteractive: handleRunAction,
   });
 
@@ -138,6 +140,17 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     if (!action) return <Text color="red">Action not found</Text>;
 
     const handleConfirm = () => {
+      if (action.runtime === "ink") {
+        nav.setStack((s) => {
+          const next = [
+            ...s.slice(0, -1),
+            { type: "ink-component" as const, actionId },
+          ];
+          nav.stackRef.current = next;
+          return next;
+        });
+        return;
+      }
       handleRunAction(action);
     };
 
@@ -153,6 +166,23 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
           />
         </Box>
       </Box>
+    );
+  }
+
+  if (nav.currentScreen.type === "ink-component") {
+    const { actionId } = nav.currentScreen;
+    const action = actions.find((a) => a.id === actionId);
+    if (!action) return <Text color="red">Action not found</Text>;
+
+    return (
+      <FullscreenProvider enabled={action.meta.fullscreen ?? false}>
+        <InkActionRenderer
+          action={action}
+          cwd={process.cwd()}
+          env={config.env ?? {}}
+          onExit={() => nav.popScreen()}
+        />
+      </FullscreenProvider>
     );
   }
 

@@ -15,6 +15,11 @@ export interface ActionMeta {
    * @default false
    */
   hidden?: boolean;
+  /**
+   * Use alternate screen buffer when rendering (ink actions only)
+   * @default false
+   */
+  fullscreen?: boolean;
 }
 
 export interface Action {
@@ -50,7 +55,7 @@ export interface Action {
  * @example ".sh" → "bash"
  * @example ".py" → "python"
  */
-export type Runtime = "bun" | "node" | "bash" | "python" | "executable";
+export type Runtime = "bun" | "node" | "bash" | "python" | "executable" | "ink";
 
 export interface MenuItem {
   /** Whether this item represents an action, navigable category, or section separator */
@@ -71,7 +76,20 @@ export type Screen =
   /** Menu listing actions/categories at a given path */
   | { type: "menu"; path: string[] }
   /** Confirmation prompt before running an action */
-  | { type: "confirm"; actionId: string };
+  | { type: "confirm"; actionId: string }
+  /** In-process Ink component rendered within kadai */
+  | { type: "ink-component"; actionId: string };
+
+export interface InkActionProps {
+  /** Working directory the action runs in */
+  cwd: string;
+  /** Environment variables from kadai config */
+  env: Record<string, string>;
+  /** Additional arguments passed to the action */
+  args: string[];
+  /** Call this to return to the kadai menu */
+  onExit: () => void;
+}
 
 export interface KadaiConfig {
   /**

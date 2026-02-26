@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { loadConfig } from "./config.ts";
+import { enterFullscreen } from "./fullscreen.ts";
 import { loadActions } from "./loader.ts";
 import { resolveCommand } from "./runner.ts";
 
@@ -30,6 +31,7 @@ export async function handleList(options: ListOptions): Promise<never> {
     category: a.category,
     runtime: a.runtime,
     confirm: a.meta.confirm ?? false,
+    fullscreen: a.meta.fullscreen ?? false,
   }));
 
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
@@ -46,6 +48,34 @@ export async function handleRun(options: RunOptions): Promise<never> {
   if (!action) {
     process.stderr.write(`Error: action "${actionId}" not found\n`);
     process.exit(1);
+  }
+
+  if (action.runtime === "ink") {
+    const mod = await import(action.filePath);
+    if (typeof mod.default !== "function") {
+      process.stderr.write(
+        `Error: "${action.filePath}" does not export a default function component\n`,
+      );
+      process.exit(1);
+    }
+
+    const cleanupFullscreen = action.meta.fullscreen
+      ? enterFullscreen()
+      : undefined;
+
+    const React = await import("react");
+    const { render } = await import("ink");
+    const instance = render(
+      React.createElement(mod.default, {
+        cwd,
+        env: config.env ?? {},
+        args: [],
+        onExit: () => instance.unmount(),
+      }),
+    );
+    await instance.waitUntilExit();
+    cleanupFullscreen?.();
+    process.exit(0);
   }
 
   const cmd = resolveCommand(action);
