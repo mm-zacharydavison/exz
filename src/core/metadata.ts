@@ -3,7 +3,7 @@ import type { ActionMeta } from "../types.ts";
 const XCLI_PATTERN = /^(?:#|\/\/)\s*xcli:(\w+)\s+(.+)$/;
 const MAX_SCAN_LINES = 20;
 
-export function parseMetadataFromContent(content: string): Partial<ActionMeta> {
+function parseMetadataFromContent(content: string): Partial<ActionMeta> {
   const lines = content.split("\n").slice(0, MAX_SCAN_LINES);
   const meta: Partial<ActionMeta> = {};
 
@@ -36,7 +36,7 @@ export function parseMetadataFromContent(content: string): Partial<ActionMeta> {
   return meta;
 }
 
-export function inferNameFromFilename(filename: string): string {
+function inferNameFromFilename(filename: string): string {
   const nameWithoutExt = filename.replace(/\.[^.]+$/, "");
   return nameWithoutExt
     .replace(/[-_]/g, " ")

@@ -6,7 +6,6 @@ interface ActionOutputProps {
   action: Action;
   cwd: string;
   config?: XcliConfig;
-  onDone?: () => void;
 }
 
 export function ActionOutput({ action, cwd, config }: ActionOutputProps) {

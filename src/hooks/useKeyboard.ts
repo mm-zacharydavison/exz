@@ -33,9 +33,6 @@ interface UseKeyboardOptions {
   exit: () => void;
   getMenuItems: (actions: Action[], path: string[]) => MenuItem[];
   computeFiltered: (items: MenuItem[], query: string) => MenuItem[];
-  onRequestHandover?: () => void;
-  aiEnabled?: boolean;
-  hasSources?: boolean;
   isActive?: boolean;
 }
 
@@ -54,9 +51,6 @@ export function useKeyboard({
   exit,
   getMenuItems,
   computeFiltered,
-  onRequestHandover,
-  aiEnabled = true,
-  hasSources = false,
   isActive = true,
 }: UseKeyboardOptions) {
   useInput(
@@ -68,12 +62,6 @@ export function useKeyboard({
         if (key.escape || key.return) popScreen();
         return;
       }
-
-      // AI generate screen: no keyboard handling (transitional state)
-      if (screen.type === "handover") return;
-
-      // Share screen: handled by ShareScreen component
-      if (screen.type === "share") return;
 
       // From here, screen must be "menu"
       if (screen.type !== "menu") return;
@@ -150,22 +138,6 @@ export function useKeyboard({
       }
       if (input === "q") {
         exit();
-        return;
-      }
-      if (input === "n" && aiEnabled && onRequestHandover) {
-        onRequestHandover();
-        return;
-      }
-      if (input === "s" && hasSources) {
-        // Share the currently selected local action
-        const allItems = getMenuItems(actionsRef.current, screen.path);
-        const item = allItems[selectedIndexRef.current];
-        if (item?.type === "action") {
-          const action = actionsRef.current.find((a) => a.id === item.value);
-          if (action && action.source?.type !== "github") {
-            pushScreen({ type: "share", actionIds: [action.id] });
-          }
-        }
         return;
       }
       if (key.escape) {

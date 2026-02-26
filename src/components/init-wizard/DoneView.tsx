@@ -1,31 +1,13 @@
 import { Box, Text } from "ink";
+import type { WriteInitFilesResult } from "../../core/init-wizard.ts";
 
-export function DoneView({
-  aiEnabled,
-  sampleCreated,
-  branchProtectionWarning,
-}: {
-  aiEnabled: boolean;
-  sampleCreated: boolean;
-  branchProtectionWarning: string | null;
-}) {
+export function DoneView({ result }: { result: WriteInitFilesResult }) {
   return (
     <Box flexDirection="column">
-      {aiEnabled && (
-        <Box marginBottom={1}>
-          <Text color="green">✓ AI generation enabled</Text>
-        </Box>
-      )}
-      {branchProtectionWarning && (
-        <Box marginBottom={1}>
-          <Text color="yellow">⚠ {branchProtectionWarning}</Text>
-        </Box>
-      )}
-      {sampleCreated && (
-        <Text>Creating .xcli/actions/ with a sample action...</Text>
-      )}
-      <Text>Writing .xcli/config.ts...</Text>
-      <Text>Done! Run xcli again to get started.</Text>
+      <Text>Created .xcli/config.ts</Text>
+      {result.sampleCreated && <Text>Created .xcli/actions/hello.sh</Text>}
+      {result.skillCreated && <Text>Created .claude/skills/xcli/SKILL.md</Text>}
+      <Text>{"\n"}Done! Run xcli again to get started.</Text>
     </Box>
   );
 }

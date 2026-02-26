@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { Action, ActionSource, Runtime } from "../types.ts";
+import type { Action, Runtime } from "../types.ts";
 import { extractMetadata } from "./metadata.ts";
 
 const SUPPORTED_EXTENSIONS = new Set([
@@ -78,13 +78,10 @@ async function getGitAddedDates(dir: string): Promise<Map<string, number>> {
   return dates;
 }
 
-export async function loadActions(
-  actionsDir: string,
-  source?: ActionSource,
-): Promise<Action[]> {
+export async function loadActions(actionsDir: string): Promise<Action[]> {
   const actions: Action[] = [];
   const gitDates = await getGitAddedDates(actionsDir);
-  await scanDirectory(actionsDir, actionsDir, [], actions, 0, source, gitDates);
+  await scanDirectory(actionsDir, actionsDir, [], actions, 0, gitDates);
   actions.sort((a, b) => a.meta.name.localeCompare(b.meta.name));
   return actions;
 }
@@ -95,7 +92,6 @@ async function scanDirectory(
   category: string[],
   actions: Action[],
   depth: number,
-  source?: ActionSource,
   gitDates?: Map<string, number>,
 ): Promise<void> {
   if (depth > 3) return;
@@ -119,7 +115,6 @@ async function scanDirectory(
         [...category, entry.name],
         actions,
         depth + 1,
-        source,
         gitDates,
       );
     } else if (entry.isFile()) {
@@ -131,10 +126,7 @@ async function scanDirectory(
         readShebang(fullPath),
       ]);
       const addedAt = gitDates?.get(fullPath);
-      const idParts = [...category, entry.name.replace(/\.[^.]+$/, "")];
-      const rawId = idParts.join("/");
-      const id =
-        source && source.type !== "local" ? `${source.label}:${rawId}` : rawId;
+      const id = [...category, entry.name.replace(/\.[^.]+$/, "")].join("/");
 
       actions.push({
         id,
@@ -144,7 +136,6 @@ async function scanDirectory(
         runtime: runtimeFromExtension(ext),
         addedAt,
         ...(shebang ? { shebang } : {}),
-        ...(source ? { source } : {}),
       });
     }
   }

@@ -1,20 +1,38 @@
 #!/usr/bin/env bun
-import { join } from "node:path";
-import { Readable } from "node:stream";
-import { render } from "ink";
-import React from "react";
-import { generate } from "./ai/generate.ts";
-import { getDefaultProvider } from "./ai/provider.ts";
-import { App } from "./app.tsx";
-import { InitWizard } from "./components/init-wizard/InitWizard.tsx";
-import { loadConfig } from "./core/config.ts";
-import { defaultDeps, type InitResult } from "./core/init-wizard.ts";
+import { parseArgs } from "./core/args.ts";
+import { handleList, handleRun } from "./core/commands.ts";
 import { findXcliDir } from "./core/loader.ts";
-import type { GenerationResult } from "./types.ts";
 
 const cwd = process.cwd();
+const parsed = parseArgs(process.argv.slice(2));
 
-let xcliDir = findXcliDir(cwd);
+if (parsed.type === "error") {
+  process.stderr.write(`${parsed.message}\n`);
+  process.exit(1);
+}
+
+if (parsed.type === "list" || parsed.type === "run") {
+  const xcliDir = findXcliDir(cwd);
+  if (!xcliDir) {
+    process.stderr.write(
+      "Error: No .xcli directory found. Run xcli to initialize.\n",
+    );
+    process.exit(1);
+  }
+  if (parsed.type === "list") {
+    await handleList({ xcliDir, all: parsed.all });
+  } else {
+    await handleRun({ xcliDir, actionId: parsed.actionId, cwd });
+  }
+}
+
+// Interactive TUI mode
+const { Readable } = await import("node:stream");
+const { render } = await import("ink");
+const React = await import("react");
+const { App } = await import("./app.tsx");
+
+const xcliDir = findXcliDir(cwd);
 if (!xcliDir) {
   if (!process.stdin.isTTY) {
     process.stderr.write(
@@ -22,21 +40,15 @@ if (!xcliDir) {
     );
     process.exit(1);
   }
-  const initResult = await new Promise<InitResult>((resolve) => {
-    const instance = render(
-      React.createElement(InitWizard, {
-        cwd,
-        deps: defaultDeps(),
-        onDone: (result) => {
-          instance.unmount();
-          resolve(result);
-        },
-      }),
-      { stdout: process.stdout, stderr: process.stderr },
-    );
-  });
-  xcliDir = initResult.xcliDir;
-  console.clear();
+  const { writeInitFiles } = await import("./core/init-wizard.ts");
+  console.log("No .xcli directory found. Setting one up.\n");
+  const result = await writeInitFiles(cwd);
+  console.log("  Created .xcli/config.ts");
+  if (result.sampleCreated) console.log("  Created .xcli/actions/hello.sh");
+  if (result.skillCreated)
+    console.log("  Created .claude/skills/xcli/SKILL.md");
+  console.log("\nDone! Run xcli again to get started.");
+  process.exit(0);
 }
 
 function createStdinStream(): NodeJS.ReadStream {
@@ -138,89 +150,19 @@ function createStdinStream(): NodeJS.ReadStream {
   return charStream as unknown as NodeJS.ReadStream;
 }
 
-type RenderResult = "exit" | "handover";
-
-function renderInkApp(
-  stdinStream: NodeJS.ReadStream,
-  opts: {
-    generationResult?: GenerationResult;
-  },
-): Promise<RenderResult> {
-  return new Promise((resolve) => {
-    let resolved = false;
-
-    const onRequestHandover = () => {
-      if (resolved) return;
-      resolved = true;
-      instance.unmount();
-      resolve("handover");
-    };
-
-    const instance = render(
-      React.createElement(App, {
-        cwd,
-        xcliDir: xcliDir as string,
-        onRequestHandover,
-        generationResult: opts.generationResult,
-      }),
-      {
-        stdin: stdinStream,
-        stdout: process.stdout,
-        stderr: process.stderr,
-      },
-    );
-
-    instance.waitUntilExit().then(() => {
-      if (!resolved) {
-        resolved = true;
-        resolve("exit");
-      }
-    });
-  });
-}
-
 const stdinStream = createStdinStream();
 
-// Main loop: alternate between Ink sessions and external process sessions
-let generationResult: GenerationResult | undefined;
+const instance = render(
+  React.createElement(App, {
+    cwd,
+    xcliDir,
+  }),
+  {
+    stdin: stdinStream,
+    stdout: process.stdout,
+    stderr: process.stderr,
+  },
+);
 
-while (true) {
-  const result = await renderInkApp(stdinStream, {
-    generationResult,
-  });
-  generationResult = undefined;
-
-  if (result === "exit") break;
-
-  if (result === "handover") {
-    const provider = getDefaultProvider();
-    const available = await provider.isAvailable();
-
-    if (!available) {
-      console.log(
-        `\n${provider.name} not found. Install the required CLI tool to use AI generation.\n`,
-      );
-      continue;
-    }
-
-    const cfg = await loadConfig(xcliDir);
-    const actionsDir = join(xcliDir, cfg.actionsDir ?? "actions");
-
-    // Pause stdin so the parent process doesn't compete with
-    // the child process for keystrokes on the shared fd.
-    process.stdin.pause();
-
-    const newActions = await generate(provider, xcliDir, actionsDir);
-
-    // Resume stdin so Ink can read from it again.
-    process.stdin.resume();
-
-    if (newActions.length > 0) {
-      generationResult = { newActions };
-    } else {
-      console.log("\nNo new actions created.\n");
-    }
-  }
-}
-
+await instance.waitUntilExit();
 process.exit(0);

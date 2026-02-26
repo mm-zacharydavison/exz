@@ -40,8 +40,6 @@ export interface Action {
    * @example "#!/usr/bin/env zsh"
    */
   shebang?: string;
-  /** Where this action was loaded from */
-  source?: ActionSource;
   /** Timestamp (ms) when this action file was created */
   addedAt?: number;
 }
@@ -54,27 +52,6 @@ export interface Action {
  */
 export type Runtime = "bun" | "node" | "bash" | "python" | "executable";
 
-export interface ActionContext {
-  /** Run a shell command and capture its output */
-  exec: (cmd: string) => Promise<ExecResult>;
-  /** Working directory for the action */
-  cwd: string;
-  /** Root directory of the repository */
-  repoRoot: string;
-}
-
-export interface ExecResult {
-  /**
-   * Process exit code
-   * @example 0
-   */
-  exitCode: number;
-  /** Captured standard output */
-  stdout: string;
-  /** Captured standard error */
-  stderr: string;
-}
-
 export interface MenuItem {
   /** Whether this item represents an action, navigable category, or section separator */
   type: "action" | "category" | "separator";
@@ -86,15 +63,8 @@ export interface MenuItem {
   description?: string;
   /** Action ID or category name used for selection */
   value: string;
-  /** Dimmed source label for external actions */
-  source?: string;
   /** Whether this action was added within the past 7 days */
   isNew?: boolean;
-}
-
-export interface NavigationState {
-  /** Stack of screens; the last element is the current view */
-  stack: Screen[];
 }
 
 export type Screen =
@@ -103,52 +73,7 @@ export type Screen =
   /** Output display for a running or completed action */
   | { type: "output"; actionId: string }
   /** Confirmation prompt before running an action */
-  | { type: "confirm"; actionId: string }
-  /** Transitional: signals cli.tsx to hand terminal control to an external process */
-  | { type: "handover" }
-  /** Share flow for pushing actions to a source repo */
-  | { type: "share"; actionIds: string[] };
-
-export interface SourceConfig {
-  /** GitHub repo in "org/repo-name" format */
-  repo: string;
-  /**
-   * Git ref to fetch
-   * @default "main"
-   */
-  ref?: string;
-}
-
-export interface ActionSource {
-  /** Where this action was loaded from */
-  type: "local" | "github";
-  /**
-   * Display label for the source
-   * @example "meetsmore/xcli-scripts" or "local"
-   */
-  label: string;
-}
-
-export interface SourceMeta {
-  /** ISO timestamp of when this source was last fetched */
-  fetchedAt: string;
-  /** GitHub repo in "org/repo-name" format */
-  repo: string;
-  /** Git ref that was fetched */
-  ref: string;
-}
-
-export interface GenerationResult {
-  /** Actions that were newly created or modified during AI generation */
-  newActions: Action[];
-}
-
-export interface ShareConfig {
-  /** How changes are pushed to the target repo */
-  strategy: "push" | "branch" | "pr";
-  /** GitHub usernames or org/team-slug for PR reviewers, only used when strategy = "pr" */
-  reviewers?: string[];
-}
+  | { type: "confirm"; actionId: string };
 
 export interface XcliConfig {
   /**
@@ -158,27 +83,4 @@ export interface XcliConfig {
   actionsDir?: string;
   /** Environment variables injected into all action processes */
   env?: Record<string, string>;
-  /** Lifecycle hooks run before/after every action */
-  hooks?: {
-    /** Shell command run before any action executes */
-    before?: string;
-    /** Shell command run after any action completes */
-    after?: string;
-  };
-  /** External GitHub repos to load actions from */
-  sources?: SourceConfig[];
-  /** AI generation settings */
-  ai?: {
-    /**
-     * Enable AI action generation via Claude CLI
-     * @default true
-     */
-    enabled?: boolean;
-  };
-  /** Share strategy configuration */
-  share?: ShareConfig;
-  /** GitHub org name, written during init */
-  org?: string;
-  /** Category path to auto-navigate to on startup (e.g. ["@org", "repo"]) */
-  autoNavigate?: string[];
 }

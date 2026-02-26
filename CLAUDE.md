@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+NOT-RELEASED
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
@@ -16,33 +18,25 @@ bun src/cli.tsx          # Run the CLI locally
 
 ## What This Project Is
 
-xcli is an interactive terminal tool for discovering and running shell scripts stored in `.xcli/actions/`. It provides a menu-driven UI with fuzzy search, supports multiple script runtimes (bash, TypeScript, Python, JS), and can load actions from external GitHub repos. It also integrates with Claude Code for AI-powered action generation.
+xcli is an interactive terminal tool for discovering and running shell scripts stored in `.xcli/actions/`. It provides a menu-driven UI with fuzzy search and supports multiple script runtimes (bash, TypeScript, Python, JS). Actions are local-only — no external sources, no AI generation.
 
 ## Architecture
 
-**Entry point**: `src/cli.tsx` — finds/initializes `.xcli` dir, resolves git context, then enters a main loop alternating between Ink (React terminal UI) sessions and Claude Code handover sessions for AI generation.
+**Entry point**: `src/cli.tsx` — finds `.xcli` dir (searching upward from cwd), runs init wizard if missing, then renders the Ink app and exits when done.
 
 **Core modules** (`src/core/`):
-- `loader.ts` — Recursively scans `.xcli/actions/` for scripts, extracts metadata, builds action list
-- `runner.ts` — Executes actions via `Bun.spawn()` with three-tier command resolution: shebang → runtime chain → fallback
-- `config.ts` — Loads `.xcli/config.ts` (actionsDir, env, hooks, sources)
-- `sources.ts` — Caches external action sources under `.xcli/.cache/sources/`, loads cached instantly, refreshes in background
-- `fetcher.ts` — `SourceFetcher` interface with `GitFetcher` impl (shallow clone → atomic move)
-- `metadata.ts` — Parses comment frontmatter (`# xcli:name`, `// xcli:emoji`, etc.)
-- `git-utils.ts` — Parses GitHub remotes, detects repo identity, gets git user
-
-**AI module** (`src/ai/`):
-- `generate.ts` — Snapshots actions dir, spawns Claude Code, diffs to find new actions
-- `prompt.ts` — Builds system prompt with xcli conventions and existing action listing
-- `provider.ts` — `AIProvider` interface + `ClaudeCodeProvider` implementation
-- `share.ts` — Copies generated actions to external source repos, commits, pushes
+- `loader.ts` — Recursively scans `.xcli/actions/` for scripts (up to 4 levels deep), extracts metadata, builds action list. Also fetches git-based "added at" timestamps for the "New" indicator.
+- `runner.ts` — Executes actions via `Bun.spawn()` with three-tier command resolution: shebang → runtime chain → fallback. Injects config env vars.
+- `config.ts` — Loads `.xcli/config.ts` (`actionsDir`, `env`)
+- `metadata.ts` — Parses comment frontmatter (`# xcli:name`, `// xcli:emoji`, etc.) from the first 20 lines. Falls back to inferring name from filename.
+- `init-wizard.ts` — Creates `.xcli/actions/` dir, sample action, and config file.
 
 **UI layer** (`src/app.tsx` + `src/components/` + `src/hooks/`):
-- React/Ink terminal app with screen stack navigation (menu → confirm → output → share)
-- Hooks: `useActions` (load/refresh), `useNavigation` (screen stack), `useSearch` (fuzzy search via fuzzysort), `useKeyboard` (input handling)
-- Terminal control handover pattern: Ink unmounts → Claude Code spawns → Ink remounts with results
+- React/Ink terminal app with screen stack navigation (menu → confirm → output)
+- Hooks: `useActions` (load actions), `useNavigation` (screen stack), `useSearch` (fuzzy search via fuzzysort), `useKeyboard` (input handling)
+- `buildMenuItems()` in `app.tsx` builds the hierarchical menu with categories, sorting, and "New" section
 
-**Types**: `src/types.ts` — All shared interfaces (`Action`, `Screen`, `XcliConfig`, `GenerationResult`, etc.)
+**Types**: `src/types.ts` — All shared interfaces (`Action`, `ActionMeta`, `MenuItem`, `Screen`, `XcliConfig`, `Runtime`)
 
 ## Testing
 

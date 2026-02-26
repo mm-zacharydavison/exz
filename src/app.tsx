@@ -1,15 +1,13 @@
 import { ConfirmInput } from "@inkjs/ui";
 import { Box, Text, useApp } from "ink";
-import { useState } from "react";
 import { ActionOutput } from "./components/ActionOutput.tsx";
 import { Breadcrumbs } from "./components/Breadcrumbs.tsx";
 import { StatusBar } from "./components/StatusBar.tsx";
-import { ShareScreen } from "./components/share-screen/ShareScreen.tsx";
 import { useActions } from "./hooks/useActions.ts";
 import { useKeyboard } from "./hooks/useKeyboard.ts";
 import { useNavigation } from "./hooks/useNavigation.ts";
 import { useSearch } from "./hooks/useSearch.ts";
-import type { Action, GenerationResult, MenuItem } from "./types.ts";
+import type { Action, MenuItem } from "./types.ts";
 
 function MenuList({
   items,
@@ -46,7 +44,6 @@ function MenuList({
               {item.type === "category" ? " ▸" : ""}
             </Text>
             {item.description && <Text dimColor> ({item.description})</Text>}
-            {item.source && <Text dimColor>{` ${item.source}`}</Text>}
           </Box>
         );
       })}
@@ -57,35 +54,16 @@ function MenuList({
 interface AppProps {
   cwd: string;
   xcliDir: string;
-  onRequestHandover?: () => void;
-  generationResult?: GenerationResult;
 }
 
-export function App({
-  cwd,
-  xcliDir,
-  onRequestHandover,
-  generationResult,
-}: AppProps) {
+export function App({ cwd, xcliDir }: AppProps) {
   const { exit } = useApp();
-  const [showShareScreen, setShowShareScreen] = useState(
-    () => (generationResult?.newActions.length ?? 0) > 0,
-  );
 
   const search = useSearch();
   const nav = useNavigation({ onExit: exit, onNavigate: search.resetSearch });
-  const { actions, actionsRef, config, loading, syncing } = useActions({
+  const { actions, actionsRef, config, loading } = useActions({
     xcliDir,
-    setStack: nav.setStack,
-    stackRef: nav.stackRef,
   });
-
-  const getMenuItems = (actionsList: Action[], path: string[]): MenuItem[] => {
-    return buildMenuItems(actionsList, path);
-  };
-
-  const aiEnabled = config.ai?.enabled !== false;
-  const hasSources = (config.sources?.length ?? 0) > 0;
 
   useKeyboard({
     stackRef: nav.stackRef,
@@ -100,61 +78,18 @@ export function App({
     pushScreen: nav.pushScreen,
     popScreen: nav.popScreen,
     exit,
-    getMenuItems,
+    getMenuItems: buildMenuItems,
     computeFiltered: search.computeFiltered,
-    onRequestHandover,
-    aiEnabled,
-    hasSources,
-    isActive:
-      !showShareScreen &&
-      nav.currentScreen.type !== "share" &&
-      nav.currentScreen.type !== "confirm",
+    isActive: nav.currentScreen.type !== "confirm",
   });
 
   if (loading) {
     return <Text dimColor>Loading actions...</Text>;
   }
 
-  // Share screen from AI generation result
-  if (showShareScreen && generationResult) {
-    return (
-      <ShareScreen
-        newActions={generationResult.newActions}
-        sources={config.sources ?? []}
-        cwd={cwd}
-        config={config}
-        xcliDir={xcliDir}
-        onDone={() => setShowShareScreen(false)}
-      />
-    );
-  }
-
-  // Share screen from menu 's' keybinding
-  if (nav.currentScreen.type === "share") {
-    const shareActions = nav.currentScreen.actionIds
-      .map((id) => actions.find((a) => a.id === id))
-      .filter((a): a is Action => a !== undefined);
-
-    if (shareActions.length === 0) {
-      nav.popScreen();
-      return null;
-    }
-
-    return (
-      <ShareScreen
-        newActions={shareActions}
-        sources={config.sources ?? []}
-        cwd={cwd}
-        config={config}
-        xcliDir={xcliDir}
-        onDone={() => nav.popScreen()}
-      />
-    );
-  }
-
   if (nav.currentScreen.type === "menu") {
     const menuPath = nav.currentScreen.path;
-    const menuItems = getMenuItems(actions, menuPath);
+    const menuItems = buildMenuItems(actions, menuPath);
     const filteredItems = search.computeFiltered(menuItems, search.searchQuery);
 
     // Skip past leading separator if selectedIndex lands on one
@@ -186,11 +121,7 @@ export function App({
             selectedIndex={search.selectedIndex}
           />
         )}
-        <StatusBar
-          syncing={syncing}
-          aiEnabled={aiEnabled}
-          hasSources={hasSources}
-        />
+        <StatusBar />
       </Box>
     );
   }
@@ -280,8 +211,6 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
           emoji: action.meta.emoji,
           description: action.meta.description,
           value: action.id,
-          source:
-            action.source?.type !== "local" ? action.source?.label : undefined,
           isNew: newActionIds.has(action.id),
         });
       }
@@ -298,8 +227,6 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
           emoji: action.meta.emoji,
           description: action.meta.description,
           value: action.id,
-          source:
-            action.source?.type !== "local" ? action.source?.label : undefined,
           isNew: newActionIds.has(action.id),
         });
       } else if (action.category.length > path.length) {
@@ -319,10 +246,6 @@ export function buildMenuItems(actions: Action[], path: string[]): MenuItem[] {
   items.sort((a, b) => {
     // Categories first
     if (a.type !== b.type) return a.type === "category" ? -1 : 1;
-    // Local actions before external
-    const aExternal = a.source ? 1 : 0;
-    const bExternal = b.source ? 1 : 0;
-    if (aExternal !== bExternal) return aExternal - bExternal;
     return a.label.localeCompare(b.label);
   });
 

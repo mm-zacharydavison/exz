@@ -3,8 +3,4 @@ export default {
     APP_ENV: "testing",
     DATABASE_URL: "postgres://localhost:5432/test_db",
   },
-  hooks: {
-    before: "echo 'Running pre-action hook'",
-    after: "echo 'Running post-action hook'",
-  },
 };
