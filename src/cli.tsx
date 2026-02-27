@@ -202,31 +202,21 @@ console.log(
   `${action.meta.emoji ? `${action.meta.emoji} ` : ""}${action.meta.name}\n`,
 );
 
-// Remove leftover stdin listeners from createStdinStream so they
-// don't interfere with forwarding.
+// Clean up stdin so the child process gets direct terminal access.
+// This is critical for programs like sudo that need raw terminal control.
 process.stdin.removeAllListeners("data");
+if (process.stdin.isTTY) {
+  process.stdin.setRawMode(false);
+}
+process.stdin.resume();
 
 const proc = Bun.spawn(cmd, {
   cwd,
   stdout: "inherit",
   stderr: "inherit",
-  stdin: "pipe",
+  stdin: "inherit",
   env,
 });
-
-// Forward stdin to child, converting \r to \n since the terminal
-// is in raw mode (sends \r for Enter) but the child expects cooked input.
-const forwardStdin = (data: Buffer) => {
-  try {
-    const converted = Buffer.from(data.toString().replace(/\r/g, "\n"));
-    proc.stdin.write(converted);
-    proc.stdin.flush();
-  } catch {
-    // Child already exited
-  }
-};
-process.stdin.on("data", forwardStdin);
-process.stdin.resume();
 
 const exitCode = await proc.exited;
 process.exit(exitCode);
