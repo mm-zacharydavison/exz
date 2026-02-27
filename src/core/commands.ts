@@ -84,6 +84,15 @@ export async function handleRun(options: RunOptions): Promise<never> {
     ...(config.env ?? {}),
   };
 
+  // Clean up stdin so the child process gets direct terminal access.
+  // This is critical for programs like sudo that need raw terminal control.
+  process.stdin.removeAllListeners();
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false);
+  }
+  process.stdin.pause();
+  process.stdin.unref();
+
   const proc = Bun.spawn(cmd, {
     cwd,
     stdout: "inherit",

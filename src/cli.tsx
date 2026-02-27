@@ -210,11 +210,15 @@ console.log(
 
 // Clean up stdin so the child process gets direct terminal access.
 // This is critical for programs like sudo that need raw terminal control.
+// We must pause() (not resume()) to stop the parent from reading fd 0,
+// otherwise it competes with the child process for stdin bytes.
 process.stdin.removeAllListeners("data");
+process.stdin.removeAllListeners("end");
 if (process.stdin.isTTY) {
   process.stdin.setRawMode(false);
 }
-process.stdin.resume();
+process.stdin.pause();
+process.stdin.unref();
 
 const proc = Bun.spawn(cmd, {
   cwd,
