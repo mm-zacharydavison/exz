@@ -35,7 +35,7 @@ function MenuList({
         }
         const selected = i === selectedIndex;
         return (
-          <Box key={`${i}-${item.value}`}>
+          <Box key={`${i}-${item.value}`} width="100%">
             <Text color={selected ? "cyan" : undefined}>
               {selected ? "❯ " : "  "}
             </Text>
@@ -51,7 +51,8 @@ function MenuList({
               pluginSyncStatuses?.get(item.value) === "syncing" && (
                 <Text dimColor> ⟳</Text>
               )}
-            {item.description && <Text dimColor> ({item.description})</Text>}
+            <Box flexGrow={1} />
+            {item.description && <Text dimColor>{item.description}</Text>}
           </Box>
         );
       })}
