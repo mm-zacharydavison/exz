@@ -200,9 +200,7 @@ function selectCurrentItem(
     pushScreen({ type: "menu", path: [...menuPath, item.value] });
   } else {
     const action = actionsRef.current.find((a) => a.id === item.value);
-    if (action?.meta.inputs?.length) {
-      pushScreen({ type: "input-form", actionId: item.value });
-    } else if (action?.meta.confirm) {
+    if (action?.meta.confirm) {
       pushScreen({ type: "confirm", actionId: item.value });
     } else if (action?.runtime === "ink") {
       pushScreen({ type: "ink-component", actionId: item.value });

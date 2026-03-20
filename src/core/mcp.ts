@@ -111,7 +111,7 @@ function buildZodShape(inputs: ActionInput[]): Record<string, z.ZodTypeAny> {
       default:
         schema = z.string();
     }
-    schema = schema.describe(input.prompt);
+    schema = schema.describe(input.name);
     if (!input.required) schema = schema.optional();
     shape[input.name] = schema;
   }

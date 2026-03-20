@@ -70,9 +70,9 @@ const { App } = await import("./app.tsx");
 const { resolveCommand } = await import("./core/runner.ts");
 const { loadConfig } = await import("./core/config.ts");
 
-import type { Action, InputValues } from "./types.ts";
+import type { Action } from "./types.ts";
 import { saveLastAction } from "./core/last-action.ts";
-import { buildInjection, buildStdinStream, filterSensitiveInputs } from "./core/inputs.ts";
+import { filterSensitiveInputs, runWithStdinRecording } from "./core/inputs.ts";
 
 const kadaiDir = findZcliDir(cwd);
 if (!kadaiDir) {
@@ -202,16 +202,14 @@ function createStdinStream(): NodeJS.ReadStream {
 }
 
 let selectedAction: Action | null = null;
-let selectedInputValues: InputValues = {};
 
 const stdinStream = createStdinStream();
 
 const instance = render(
   React.createElement(App, {
     kadaiDir,
-    onRunAction: (action: Action, inputs: InputValues) => {
+    onRunAction: (action: Action) => {
       selectedAction = action;
-      selectedInputValues = inputs;
     },
   }),
   {
@@ -227,24 +225,26 @@ if (!selectedAction) process.exit(0);
 
 // Run the selected action, replacing the kadai process
 const action: Action = selectedAction;
-await saveLastAction(kadaiDir, action.id, filterSensitiveInputs(action.meta.inputs ?? [], selectedInputValues));
 const config = await loadConfig(kadaiDir);
 const cmd = resolveCommand(action);
-const injection = buildInjection(action.meta.inputs ?? [], selectedInputValues);
-const env: Record<string, string> = {
-  ...(process.env as Record<string, string>),
-  ...(config.env ?? {}),
-  ...injection.env,
-};
 
 console.log(
   `${action.meta.emoji ? `${action.meta.emoji} ` : ""}${action.meta.name}\n`,
 );
 
-// Clean up stdin so the child process gets direct terminal access.
-// This is critical for programs like sudo that need raw terminal control.
-// We must pause() (not resume()) to stop the parent from reading fd 0,
-// otherwise it competes with the child process for stdin bytes.
+if (action.meta.inputs?.length && action.runtime !== "ink") {
+  // Recording mode: script runs with a stdin proxy that captures what it reads.
+  // Captured values are saved after exit for --rerun replay.
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    ...(config.env ?? {}),
+  };
+  const { exitCode, values } = await runWithStdinRecording(cmd, { cwd, env, inputs: action.meta.inputs });
+  await saveLastAction(kadaiDir, action.id, filterSensitiveInputs(action.meta.inputs, values));
+  process.exit(exitCode);
+}
+
+// Normal mode: give the child direct terminal access.
 process.stdin.removeAllListeners("data");
 process.stdin.removeAllListeners("end");
 if (process.stdin.isTTY) {
@@ -253,12 +253,17 @@ if (process.stdin.isTTY) {
 process.stdin.pause();
 process.stdin.unref();
 
+await saveLastAction(kadaiDir, action.id, {});
+
 const proc = Bun.spawn(cmd, {
   cwd,
   stdout: "inherit",
   stderr: "inherit",
-  stdin: injection.stdinPreamble ? buildStdinStream(injection.stdinPreamble) : "inherit",
-  env,
+  stdin: "inherit",
+  env: {
+    ...(process.env as Record<string, string>),
+    ...(config.env ?? {}),
+  },
 });
 
 const exitCode = await proc.exited;

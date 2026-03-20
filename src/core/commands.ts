@@ -3,7 +3,7 @@ import { loadConfig } from "./config.ts";
 import { enterFullscreen } from "./fullscreen.ts";
 import { loadActions } from "./loader.ts";
 import { saveLastAction, loadLastAction } from "./last-action.ts";
-import { buildInjection, buildStdinStream, filterSensitiveInputs } from "./inputs.ts";
+import { buildInjection, buildStdinStream, filterSensitiveInputs, runWithStdinRecording } from "./inputs.ts";
 import { ensureKadaiResolvable } from "./shared-deps.ts";
 import {
   loadCachedPlugins,
@@ -66,7 +66,9 @@ export async function handleList(options: ListOptions): Promise<never> {
 }
 
 export async function handleRun(options: RunOptions): Promise<never> {
-  const { kadaiDir, actionId, cwd, inputs = {} } = options;
+  const { kadaiDir, actionId, cwd, inputs } = options;
+  const hasProvidedInputs = inputs !== undefined && Object.keys(inputs).length > 0;
+  const resolvedInputs = inputs ?? {};
   const config = await loadConfig(kadaiDir);
   const actionsDir = join(kadaiDir, config.actionsDir ?? "actions");
 
@@ -92,9 +94,8 @@ export async function handleRun(options: RunOptions): Promise<never> {
     process.exit(1);
   }
 
-  await saveLastAction(kadaiDir, actionId, filterSensitiveInputs(action.meta.inputs ?? [], inputs));
-
   if (action.runtime === "ink") {
+    await saveLastAction(kadaiDir, actionId, {});
     // Ensure "kadai/ink", "kadai/react", etc. resolve from the project
     const cleanupKadai = ensureKadaiResolvable(join(cwd, "node_modules"));
 
@@ -127,7 +128,22 @@ export async function handleRun(options: RunOptions): Promise<never> {
   }
 
   const cmd = resolveCommand(action);
-  const injection = buildInjection(action.meta.inputs ?? [], inputs);
+
+  // Recording mode: no pre-provided inputs, script reads from stdin naturally.
+  // Capture what it reads and save for --rerun replay.
+  if (action.meta.inputs?.length && !hasProvidedInputs) {
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      ...(config.env ?? {}),
+    };
+    const { exitCode, values } = await runWithStdinRecording(cmd, { cwd, env, inputs: action.meta.inputs });
+    await saveLastAction(kadaiDir, actionId, filterSensitiveInputs(action.meta.inputs, values));
+    process.exit(exitCode);
+  }
+
+  // Replay mode: pre-provided inputs are fed as stdin preamble + env vars.
+  await saveLastAction(kadaiDir, actionId, filterSensitiveInputs(action.meta.inputs ?? [], resolvedInputs));
+  const injection = buildInjection(action.meta.inputs ?? [], resolvedInputs);
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     ...(config.env ?? {}),

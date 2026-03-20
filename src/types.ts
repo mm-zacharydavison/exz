@@ -1,13 +1,11 @@
 export interface ActionInput {
   /** Variable name used for env var injection and .last-action storage */
   name: string;
-  /** Value type — determines UI widget and MCP schema type */
+  /** Value type — determines replay conversion and MCP schema type */
   type: "string" | "boolean" | "number";
-  /** Prompt text shown to the user */
-  prompt: string;
   /** Whether the input must be provided (false when declared with '?') */
   required: boolean;
-  /** Whether to mask input display and skip saving to .last-action */
+  /** Whether to skip saving this input to .last-action */
   sensitive?: boolean;
 }
 
@@ -43,7 +41,8 @@ export interface ActionMeta {
    */
   fullscreen?: boolean;
   /**
-   * Declared inputs collected before running and injected as env vars + stdin
+   * Declared inputs recorded from stdin during run, replayed on --rerun.
+   * Only used for naming inputs (for env var injection on replay) and marking sensitive ones.
    */
   inputs?: ActionInput[];
 }
@@ -105,8 +104,6 @@ export interface MenuItem {
 export type Screen =
   /** Menu listing actions/categories at a given path */
   | { type: "menu"; path: string[] }
-  /** Input collection form before running an action */
-  | { type: "input-form"; actionId: string }
   /** Confirmation prompt before running an action */
   | { type: "confirm"; actionId: string }
   /** In-process Ink component rendered within kadai */
