@@ -7,8 +7,9 @@ import { StatusBar } from "./components/StatusBar.tsx";
 import { useActions } from "./hooks/useActions.ts";
 import { useKeyboard } from "./hooks/useKeyboard.ts";
 import { useNavigation } from "./hooks/useNavigation.ts";
+import { useRefState } from "./hooks/useRefState.ts";
 import { useSearch } from "./hooks/useSearch.ts";
-import type { Action, MenuItem, PluginSyncStatus } from "./types.ts";
+import type { Action, MenuItem, PluginSyncStatus, RunMode } from "./types.ts";
 
 function MenuList({
   items,
@@ -64,10 +65,12 @@ interface AppProps {
   kadaiDir: string;
   /** Called when an action is selected to run with inherited stdio */
   onRunAction: (action: Action) => void;
+  onRunMultiAction: (mode: "sequential" | "parallel", actions: Action[]) => void;
 }
 
-export function App({ kadaiDir, onRunAction }: AppProps) {
+export function App({ kadaiDir, onRunAction, onRunMultiAction }: AppProps) {
   const { exit } = useApp();
+  const [runMode, runModeRef, setRunMode] = useRefState<RunMode>({ type: "normal" });
 
   const handleRunAction = (action: Action) => {
     onRunAction(action);
@@ -87,9 +90,11 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     searchActiveRef: search.searchActiveRef,
     searchQueryRef: search.searchQueryRef,
     selectedIndexRef: search.selectedIndexRef,
+    runModeRef,
     setSearchActive: search.setSearchActive,
     setSearchQuery: search.setSearchQuery,
     setSelectedIndex: search.setSelectedIndex,
+    setRunMode,
     resetSearch: search.resetSearch,
     pushScreen: nav.pushScreen,
     popScreen: nav.popScreen,
@@ -98,6 +103,7 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     computeFiltered: search.computeFiltered,
     isActive: nav.currentScreen.type === "menu",
     onRunInteractive: handleRunAction,
+    onRunMultiAction,
   });
 
   if (loading) {
@@ -138,6 +144,16 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
             selectedIndex={search.selectedIndex}
             pluginSyncStatuses={pluginSyncStatuses}
           />
+        )}
+        {runMode.type !== "normal" && (
+          <Box marginTop={1}>
+            <Text dimColor>{"→ "}</Text>
+            <Text>
+              {runMode.type === "sequential"
+                ? `kadai run ${runMode.queue.map((a) => a.id).join(" ")}`
+                : `kadai run ${[...runMode.selected].join(" + ")}`}
+            </Text>
+          </Box>
         )}
         <StatusBar />
       </Box>

@@ -215,6 +215,10 @@ function createStdinStream(): NodeJS.ReadStream {
 }
 
 let selectedAction: Action | null = null;
+let selectedMultiAction: {
+  mode: "sequential" | "parallel";
+  actions: Action[];
+} | null = null;
 
 const stdinStream = createStdinStream();
 
@@ -223,6 +227,12 @@ const instance = render(
     kadaiDir,
     onRunAction: (action: Action) => {
       selectedAction = action;
+    },
+    onRunMultiAction: (
+      mode: "sequential" | "parallel",
+      actions: Action[],
+    ) => {
+      selectedMultiAction = { mode, actions };
     },
   }),
   {
@@ -233,6 +243,21 @@ const instance = render(
 );
 
 await instance.waitUntilExit();
+
+if (!selectedAction && !selectedMultiAction) process.exit(0);
+
+if (selectedMultiAction) {
+  const multi = selectedMultiAction as {
+    mode: "sequential" | "parallel";
+    actions: Action[];
+  };
+  const actionIds = multi.actions.map((a) => a.id);
+  if (multi.mode === "sequential") {
+    await handleRunSequential({ kadaiDir, actionIds, cwd });
+  } else {
+    await handleRunParallel({ kadaiDir, actionIds, cwd });
+  }
+}
 
 if (!selectedAction) process.exit(0);
 

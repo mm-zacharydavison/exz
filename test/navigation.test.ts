@@ -134,3 +134,53 @@ describe("navigation", () => {
     expect(output).toContain("Hello World");
   });
 });
+
+describe("multi-run composition", () => {
+  let cli: CLISession;
+
+  afterEach(() => {
+    cli?.kill();
+  });
+
+  test("right arrow queues an action and shows preview bar", async () => {
+    cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    await cli.waitForText("Hello World");
+    // Move down past the database category to the first action
+    cli.press(Keys.DOWN);
+    await Bun.sleep(100);
+    cli.press(Keys.RIGHT);
+    await cli.waitForText("kadai run");
+  });
+
+  test("escape clears the queue and hides preview bar", async () => {
+    cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    await cli.waitForText("Hello World");
+    // Move down past the database category to the first action
+    cli.press(Keys.DOWN);
+    await Bun.sleep(100);
+    cli.press(Keys.RIGHT);
+    await cli.waitForText("kadai run");
+    // Note the output length before pressing Escape
+    const lenBefore = cli.getStrippedOutput().length;
+    cli.press(Keys.ESCAPE);
+    await Bun.sleep(300);
+    // Only check output produced AFTER pressing Escape
+    const newOut = cli.getStrippedOutput().slice(lenBefore);
+    const lines = newOut.split("\n");
+    const hasPreview = lines.some((l) => /kadai run \S/.test(l));
+    expect(hasPreview).toBe(false);
+  });
+
+  test("space selects for parallel and shows + separator in preview", async () => {
+    cli = spawnCLI({ cwd: fixturePath("basic-repo") });
+    await cli.waitForText("Hello World");
+    // Move down past the database category to the first action
+    cli.press(Keys.DOWN);
+    await Bun.sleep(100);
+    cli.press(" ");
+    await cli.waitForText("kadai run");
+    cli.press(Keys.DOWN);
+    cli.press(" ");
+    await cli.waitForText("+");
+  });
+});
