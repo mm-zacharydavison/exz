@@ -352,8 +352,8 @@ describe("kadai run (parallel)", () => {
       });
       const { exitCode, output } = await session.waitForExit(15000);
       expect(exitCode).toBe(0);
-      expect(output).toContain("alpha");
-      expect(output).toContain("beta");
+      expect(output).toContain("alpha output");
+      expect(output).toContain("beta output");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -381,8 +381,8 @@ describe("kadai run (parallel)", () => {
       });
       const { exitCode, output } = await session.waitForExit(15000);
       expect(exitCode).toBe(1);
-      expect(output).toContain("ok");
-      expect(output).toContain("bad");
+      expect(output).toContain("ok output");
+      expect(output).toContain("bad output");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

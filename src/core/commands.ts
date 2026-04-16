@@ -248,6 +248,7 @@ export async function handleRunParallel(
   const runners: ParallelRunner[] = selected.map((action) => ({
     action,
     lines: [],
+    stderrLines: [],
     status: "running",
   }));
 
@@ -261,7 +262,7 @@ export async function handleRunParallel(
       env,
     });
 
-    const collectStream = async (stream: ReadableStream<Uint8Array>) => {
+    const collectStream = async (stream: ReadableStream<Uint8Array>, target: string[]) => {
       const reader = stream.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -272,16 +273,18 @@ export async function handleRunParallel(
           buffer += decoder.decode(value, { stream: true });
           const parts = buffer.split("\n");
           buffer = parts.pop() ?? "";
-          runners[i]!.lines.push(...parts);
+          target.push(...parts);
         }
-      } catch {
-        // stream closed
+      } catch (e) {
+        if (e instanceof Error && e.name !== "AbortError") {
+          process.stderr.write(`[warn] output collection error: ${e.message}\n`);
+        }
       }
-      if (buffer) runners[i]!.lines.push(buffer);
+      if (buffer) target.push(buffer);
     };
 
-    collectStream(proc.stdout);
-    collectStream(proc.stderr);
+    collectStream(proc.stdout, runners[i]!.lines);
+    collectStream(proc.stderr, runners[i]!.stderrLines);
 
     return proc;
   });
@@ -299,20 +302,20 @@ export async function handleRunParallel(
   if (process.stdin.isTTY) {
     stdinForInk = process.stdin;
   } else {
-    const fakeStdin = new Readable({ read() {} });
-    Object.assign(fakeStdin, {
-      isTTY: true,
-      setRawMode() {},
-      ref() {},
-      unref() {},
-      setEncoding() { return fakeStdin; },
-    });
-    stdinForInk = fakeStdin as unknown as NodeJS.ReadStream;
+    class FakeTTYStream extends Readable {
+      isTTY: true = true;
+      override _read() {}
+      setRawMode() { return this; }
+      ref() { return this; }
+      unref() { return this; }
+    }
+    stdinForInk = new FakeTTYStream() as unknown as NodeJS.ReadStream;
   }
 
-  const instance = render(React.createElement(ParallelOutput, { runners }), {
-    stdin: stdinForInk,
-  });
+  const instance = render(
+    React.createElement(ParallelOutput, { runners, onDone: () => instance.unmount() }),
+    { stdin: stdinForInk },
+  );
 
   const exitCodes = await Promise.all(procs.map((p) => p.exited));
 
@@ -320,9 +323,7 @@ export async function handleRunParallel(
     runners[i]!.status = code === 0 ? "done" : "failed";
   });
 
-  // Allow one final render cycle to show completed statuses before unmounting
-  await Bun.sleep(200);
-  instance.unmount();
+  await instance.waitUntilExit();
 
   // After unmounting the Ink UI, print full output for each runner so that
   // all collected lines are visible in the terminal (and in test output).
@@ -333,6 +334,9 @@ export async function handleRunParallel(
     );
     if (runner.lines.length > 0) {
       process.stdout.write(`${runner.lines.join("\n")}\n`);
+    }
+    if (runner.stderrLines.length > 0) {
+      process.stderr.write(`${runner.stderrLines.join("\n")}\n`);
     }
   }
 

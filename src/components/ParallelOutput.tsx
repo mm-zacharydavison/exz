@@ -6,9 +6,10 @@ const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 
 interface ParallelOutputProps {
   runners: ParallelRunner[];
+  onDone?: () => void;
 }
 
-export function ParallelOutput({ runners }: ParallelOutputProps) {
+export function ParallelOutput({ runners, onDone }: ParallelOutputProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [, setTick] = useState(0);
   const frameRef = useRef(0);
@@ -20,6 +21,12 @@ export function ParallelOutput({ runners }: ParallelOutputProps) {
     }, 100);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (runners.length > 0 && runners.every((r) => r.status !== "running")) {
+      onDone?.();
+    }
+  });
 
   useInput((input, key) => {
     if (key.rightArrow || input === "l") {
@@ -64,9 +71,12 @@ export function ParallelOutput({ runners }: ParallelOutputProps) {
       </Box>
       <Box flexDirection="column">
         {active.lines.slice(-40).map((line, i) => (
-          <Text key={`${activeTab}-${i}`}>{line}</Text>
+          <Text key={`out-${activeTab}-${i}`}>{line}</Text>
         ))}
-        {active.status === "running" && active.lines.length === 0 && (
+        {active.stderrLines.slice(-10).map((line, i) => (
+          <Text key={`err-${activeTab}-${i}`} color="red">{line}</Text>
+        ))}
+        {active.status === "running" && active.lines.length === 0 && active.stderrLines.length === 0 && (
           <Text dimColor>waiting for output...</Text>
         )}
       </Box>

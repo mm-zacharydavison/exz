@@ -193,7 +193,8 @@ export type PluginSyncStatus = "syncing" | "done" | "error";
 /** State of one process in a parallel run — `lines` is mutated in place as output streams in */
 export interface ParallelRunner {
   action: Action;
-  lines: string[];
+  lines: string[];       // stdout lines
+  stderrLines: string[]; // stderr lines
   status: "running" | "done" | "failed";
 }
 
