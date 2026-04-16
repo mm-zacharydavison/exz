@@ -11,6 +11,7 @@ import {
   syncPlugins,
 } from "./plugins.ts";
 import { resolveCommand } from "./runner.ts";
+import type { ParallelRunner } from "../types.ts";
 
 interface ListOptions {
   kadaiDir: string;
@@ -213,6 +214,130 @@ export async function handleRunSequential(options: RunMultiOptions): Promise<nev
   }
 
   process.exit(0);
+}
+
+export async function handleRunParallel(
+  options: RunMultiOptions,
+): Promise<never> {
+  const { kadaiDir, actionIds, cwd } = options;
+  const { actions, config } = await loadAllActions(kadaiDir);
+
+  for (const id of actionIds) {
+    if (!actions.find((a) => a.id === id)) {
+      process.stderr.write(`Error: action "${id}" not found\n`);
+      process.exit(1);
+    }
+  }
+
+  const selected = actionIds.map((id) => actions.find((a) => a.id === id)!);
+
+  for (const action of selected) {
+    if (action.runtime === "ink") {
+      process.stderr.write(
+        `Error: ink action "${action.id}" cannot be run in parallel mode\n`,
+      );
+      process.exit(1);
+    }
+  }
+
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    ...(config.env ?? {}),
+  };
+
+  const runners: ParallelRunner[] = selected.map((action) => ({
+    action,
+    lines: [],
+    status: "running",
+  }));
+
+  const procs = selected.map((action, i) => {
+    const cmd = resolveCommand(action);
+    const proc = Bun.spawn(cmd, {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      stdin: null,
+      env,
+    });
+
+    const collectStream = async (stream: ReadableStream<Uint8Array>) => {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n");
+          buffer = parts.pop() ?? "";
+          runners[i]!.lines.push(...parts);
+        }
+      } catch {
+        // stream closed
+      }
+      if (buffer) runners[i]!.lines.push(buffer);
+    };
+
+    collectStream(proc.stdout);
+    collectStream(proc.stderr);
+
+    return proc;
+  });
+
+  const React = await import("react");
+  const { render } = await import("ink");
+  const { Readable } = await import("node:stream");
+  const { ParallelOutput } = await import(
+    "../components/ParallelOutput.tsx"
+  );
+
+  // When stdin is not a TTY (e.g. in tests), Ink throws if useInput tries to
+  // enable raw mode on process.stdin. Provide a fake TTY stream instead.
+  let stdinForInk: NodeJS.ReadStream;
+  if (process.stdin.isTTY) {
+    stdinForInk = process.stdin;
+  } else {
+    const fakeStdin = new Readable({ read() {} });
+    Object.assign(fakeStdin, {
+      isTTY: true,
+      setRawMode() {},
+      ref() {},
+      unref() {},
+      setEncoding() { return fakeStdin; },
+    });
+    stdinForInk = fakeStdin as unknown as NodeJS.ReadStream;
+  }
+
+  const instance = render(React.createElement(ParallelOutput, { runners }), {
+    stdin: stdinForInk,
+  });
+
+  const exitCodes = await Promise.all(procs.map((p) => p.exited));
+
+  exitCodes.forEach((code, i) => {
+    runners[i]!.status = code === 0 ? "done" : "failed";
+  });
+
+  // Allow one final render cycle to show completed statuses before unmounting
+  await Bun.sleep(200);
+  instance.unmount();
+
+  // After unmounting the Ink UI, print full output for each runner so that
+  // all collected lines are visible in the terminal (and in test output).
+  for (const runner of runners) {
+    const icon = runner.status === "done" ? "✓" : "✗";
+    process.stdout.write(
+      `\n${icon} ${runner.action.meta.emoji ? `${runner.action.meta.emoji} ` : ""}${runner.action.meta.name}\n`,
+    );
+    if (runner.lines.length > 0) {
+      process.stdout.write(`${runner.lines.join("\n")}\n`);
+    }
+  }
+
+  const anyFailed = exitCodes.some((c) => c !== 0);
+  process.exit(anyFailed ? 1 : 0);
 }
 
 interface RerunOptions {

@@ -6,7 +6,7 @@ import { registerSharedDeps } from "./core/shared-deps.ts";
 registerSharedDeps();
 
 import { parseArgs } from "./core/args.ts";
-import { handleList, handleRun, handleRerun, handleRunSequential } from "./core/commands.ts";
+import { handleList, handleRun, handleRerun, handleRunSequential, handleRunParallel } from "./core/commands.ts";
 import { findZcliDir } from "./core/loader.ts";
 
 const cwd = process.cwd();
@@ -43,6 +43,7 @@ if (
   parsed.type === "list" ||
   parsed.type === "run" ||
   parsed.type === "run-sequential" ||
+  parsed.type === "run-parallel" ||
   parsed.type === "sync" ||
   parsed.type === "rerun"
 ) {
@@ -65,6 +66,8 @@ if (
     await handleRun({ kadaiDir, actionId: parsed.actionId, cwd });
   } else if (parsed.type === "run-sequential") {
     await handleRunSequential({ kadaiDir, actionIds: parsed.actionIds, cwd });
+  } else if (parsed.type === "run-parallel") {
+    await handleRunParallel({ kadaiDir, actionIds: parsed.actionIds, cwd });
   } else if (parsed.type === "rerun") {
     await handleRerun({ kadaiDir, cwd });
   } else {

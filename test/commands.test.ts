@@ -326,3 +326,103 @@ describe("kadai run (sequential)", () => {
     expect(stderr).toContain("nonexistent");
   });
 });
+
+// ─── run-parallel ────────────────────────────────────────────────
+
+describe("kadai run (parallel)", () => {
+  test("runs two actions concurrently and both outputs appear", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kadai-par-"));
+    const kadaiDir = join(tmpDir, ".kadai");
+    const actionsDir = join(kadaiDir, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    writeFileSync(
+      join(actionsDir, "alpha.sh"),
+      "#!/usr/bin/env bash\necho 'alpha output'",
+    );
+    writeFileSync(
+      join(actionsDir, "beta.sh"),
+      "#!/usr/bin/env bash\necho 'beta output'",
+    );
+    writeFileSync(join(kadaiDir, "config.ts"), "export default {}");
+
+    try {
+      const session = spawnCLI({
+        cwd: tmpDir,
+        args: ["run", "alpha", "+", "beta"],
+      });
+      const { exitCode, output } = await session.waitForExit(15000);
+      expect(exitCode).toBe(0);
+      expect(output).toContain("alpha");
+      expect(output).toContain("beta");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("exits 1 if any action fails, waits for all to finish", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kadai-par-fail-"));
+    const kadaiDir = join(tmpDir, ".kadai");
+    const actionsDir = join(kadaiDir, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    writeFileSync(
+      join(actionsDir, "ok.sh"),
+      "#!/usr/bin/env bash\necho 'ok output'",
+    );
+    writeFileSync(
+      join(actionsDir, "bad.sh"),
+      "#!/usr/bin/env bash\necho 'bad output'\nexit 1",
+    );
+    writeFileSync(join(kadaiDir, "config.ts"), "export default {}");
+
+    try {
+      const session = spawnCLI({
+        cwd: tmpDir,
+        args: ["run", "ok", "+", "bad"],
+      });
+      const { exitCode, output } = await session.waitForExit(15000);
+      expect(exitCode).toBe(1);
+      expect(output).toContain("ok");
+      expect(output).toContain("bad");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("exits 1 with error when an ink action is in the parallel list", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kadai-par-ink-"));
+    const kadaiDir = join(tmpDir, ".kadai");
+    const actionsDir = join(kadaiDir, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    writeFileSync(
+      join(actionsDir, "normal.sh"),
+      "#!/usr/bin/env bash\necho 'hi'",
+    );
+    writeFileSync(
+      join(actionsDir, "myink.tsx"),
+      "export default function() { return null; }",
+    );
+    writeFileSync(join(kadaiDir, "config.ts"), "export default {}");
+
+    try {
+      const session = spawnCLI({
+        cwd: tmpDir,
+        args: ["run", "normal", "+", "myink"],
+      });
+      const { exitCode, stderr } = await session.waitForExit(10000);
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain("ink");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("exits 1 if any action ID does not exist", async () => {
+    const session = spawnCLI({
+      cwd: fixturePath("basic-repo"),
+      args: ["run", "hello", "+", "nonexistent"],
+    });
+    const { exitCode, stderr } = await session.waitForExit();
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("nonexistent");
+  });
+});
