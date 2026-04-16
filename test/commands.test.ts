@@ -247,3 +247,82 @@ describe("kadai --rerun", () => {
     }
   });
 });
+
+// ─── run-sequential ──────────────────────────────────────────────
+
+describe("kadai run (sequential)", () => {
+  test("runs two actions in order", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kadai-seq-"));
+    const kadaiDir = join(tmpDir, ".kadai");
+    const actionsDir = join(kadaiDir, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    writeFileSync(
+      join(actionsDir, "first.sh"),
+      "#!/usr/bin/env bash\necho 'first output'",
+    );
+    writeFileSync(
+      join(actionsDir, "second.sh"),
+      "#!/usr/bin/env bash\necho 'second output'",
+    );
+    writeFileSync(join(kadaiDir, "config.ts"), "export default {}");
+
+    try {
+      const session = spawnCLI({
+        cwd: tmpDir,
+        args: ["run", "first", "second"],
+      });
+      const { exitCode, output } = await session.waitForExit();
+      expect(exitCode).toBe(0);
+      const firstPos = output.indexOf("first output");
+      const secondPos = output.indexOf("second output");
+      expect(firstPos).toBeGreaterThanOrEqual(0);
+      expect(secondPos).toBeGreaterThan(firstPos);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("short-circuits on failure — third action does not run", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "kadai-seq-fail-"));
+    const kadaiDir = join(tmpDir, ".kadai");
+    const actionsDir = join(kadaiDir, "actions");
+    mkdirSync(actionsDir, { recursive: true });
+    writeFileSync(
+      join(actionsDir, "first.sh"),
+      "#!/usr/bin/env bash\necho 'first output'",
+    );
+    writeFileSync(
+      join(actionsDir, "fail.sh"),
+      "#!/usr/bin/env bash\necho 'fail output'\nexit 42",
+    );
+    writeFileSync(
+      join(actionsDir, "third.sh"),
+      "#!/usr/bin/env bash\necho 'third output'",
+    );
+    writeFileSync(join(kadaiDir, "config.ts"), "export default {}");
+
+    try {
+      const session = spawnCLI({
+        cwd: tmpDir,
+        args: ["run", "first", "fail", "third"],
+      });
+      const { exitCode, output } = await session.waitForExit();
+      expect(exitCode).toBe(42);
+      expect(output).toContain("first output");
+      expect(output).toContain("fail output");
+      expect(output).not.toContain("third output");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("exits 1 if any action ID does not exist", async () => {
+    const session = spawnCLI({
+      cwd: fixturePath("basic-repo"),
+      args: ["run", "hello", "nonexistent"],
+    });
+    const { exitCode, stderr } = await session.waitForExit();
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("nonexistent");
+  });
+});

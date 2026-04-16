@@ -23,12 +23,18 @@ interface RunOptions {
   cwd: string;
 }
 
-export async function handleList(options: ListOptions): Promise<never> {
-  const { kadaiDir, all } = options;
+interface RunMultiOptions {
+  kadaiDir: string;
+  actionIds: string[];
+  cwd: string;
+}
+
+async function loadAllActions(
+  kadaiDir: string,
+): Promise<{ actions: Awaited<ReturnType<typeof loadActions>>; config: Awaited<ReturnType<typeof loadConfig>> }> {
   const config = await loadConfig(kadaiDir);
   const actionsDir = join(kadaiDir, config.actionsDir ?? "actions");
 
-  // Load all action sources
   let actions = await loadActions(actionsDir);
   const globalActions = await loadUserGlobalActions();
   actions = [...actions, ...globalActions];
@@ -43,6 +49,13 @@ export async function handleList(options: ListOptions): Promise<never> {
     const cachedActions = await loadCachedPlugins(kadaiDir, config.plugins);
     actions = [...actions, ...cachedActions];
   }
+
+  return { actions, config };
+}
+
+export async function handleList(options: ListOptions): Promise<never> {
+  const { kadaiDir, all } = options;
+  const { actions, config: _config } = await loadAllActions(kadaiDir);
 
   const filtered = all ? actions : actions.filter((a) => !a.meta.hidden);
 
@@ -64,24 +77,7 @@ export async function handleList(options: ListOptions): Promise<never> {
 
 export async function handleRun(options: RunOptions): Promise<never> {
   const { kadaiDir, actionId, cwd } = options;
-  const config = await loadConfig(kadaiDir);
-  const actionsDir = join(kadaiDir, config.actionsDir ?? "actions");
-
-  // Load all action sources
-  let actions = await loadActions(actionsDir);
-  const globalActions = await loadUserGlobalActions();
-  actions = [...actions, ...globalActions];
-
-  if (config.plugins) {
-    for (const source of config.plugins) {
-      if ("path" in source) {
-        const pathActions = await loadPathPlugin(kadaiDir, source);
-        actions = [...actions, ...pathActions];
-      }
-    }
-    const cachedActions = await loadCachedPlugins(kadaiDir, config.plugins);
-    actions = [...actions, ...cachedActions];
-  }
+  const { actions, config } = await loadAllActions(kadaiDir);
 
   const action = actions.find((a) => a.id === actionId);
   if (!action) {
@@ -148,6 +144,75 @@ export async function handleRun(options: RunOptions): Promise<never> {
 
   const exitCode = await proc.exited;
   process.exit(exitCode);
+}
+
+export async function handleRunSequential(options: RunMultiOptions): Promise<never> {
+  const { kadaiDir, actionIds, cwd } = options;
+  const { actions, config } = await loadAllActions(kadaiDir);
+
+  for (const id of actionIds) {
+    if (!actions.find((a) => a.id === id)) {
+      process.stderr.write(`Error: action "${id}" not found\n`);
+      process.exit(1);
+    }
+  }
+
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    ...(config.env ?? {}),
+  };
+
+  // Detach from parent's stdin so each child gets direct terminal access
+  process.stdin.removeAllListeners();
+  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+  process.stdin.pause();
+  process.stdin.unref();
+
+  for (const id of actionIds) {
+    const action = actions.find((a) => a.id === id)!;
+
+    process.stdout.write(
+      `\n${action.meta.emoji ? `${action.meta.emoji} ` : ""}${action.meta.name}\n\n`,
+    );
+
+    if (action.runtime === "ink") {
+      const cleanupKadai = ensureKadaiResolvable(join(cwd, "node_modules"));
+      const mod = await import(action.filePath);
+      if (typeof mod.default !== "function") {
+        process.stderr.write(
+          `Error: "${action.filePath}" does not export a default function component\n`,
+        );
+        process.exit(1);
+      }
+      const React = await import("react");
+      const { render } = await import("ink");
+      const instance = render(
+        React.createElement(mod.default, {
+          cwd,
+          env: config.env ?? {},
+          args: [],
+          onExit: () => instance.unmount(),
+        }),
+      );
+      await instance.waitUntilExit();
+      cleanupKadai?.();
+      continue;
+    }
+
+    const cmd = resolveCommand(action);
+    const proc = Bun.spawn(cmd, {
+      cwd,
+      stdout: "inherit",
+      stderr: "inherit",
+      stdin: "inherit",
+      env,
+    });
+
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) process.exit(exitCode);
+  }
+
+  process.exit(0);
 }
 
 interface RerunOptions {
