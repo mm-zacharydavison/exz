@@ -7,19 +7,25 @@ import { StatusBar } from "./components/StatusBar.tsx";
 import { useActions } from "./hooks/useActions.ts";
 import { useKeyboard } from "./hooks/useKeyboard.ts";
 import { useNavigation } from "./hooks/useNavigation.ts";
+import { useRefState } from "./hooks/useRefState.ts";
 import { useSearch } from "./hooks/useSearch.ts";
-import type { Action, MenuItem, PluginSyncStatus } from "./types.ts";
+import type { Action, MenuItem, PluginSyncStatus, RunMode } from "./types.ts";
 
 function MenuList({
   items,
   selectedIndex,
   pluginSyncStatuses,
+  runMode,
 }: {
   items: MenuItem[];
   selectedIndex: number;
   pluginSyncStatuses?: Map<string, PluginSyncStatus>;
+  runMode: RunMode;
 }) {
   const hasAnyNew = items.some((item) => item.isNew);
+  const isParallelMode = runMode.type === "parallel";
+  const queueIds =
+    runMode.type === "sequential" ? runMode.queue.map((a) => a.id) : [];
 
   return (
     <>
@@ -34,11 +40,24 @@ function MenuList({
           );
         }
         const selected = i === selectedIndex;
+        const isParallelSelected =
+          isParallelMode &&
+          item.type === "action" &&
+          (runMode as Extract<RunMode, { type: "parallel" }>).selected.has(item.value);
+        const queuePos =
+          item.type === "action" ? queueIds.indexOf(item.value) + 1 : 0;
+        const queueIndent = queuePos > 0 ? " ".repeat((queuePos - 1) * 2) : "";
+        const cursorGlyph = selected ? "❯ " : isParallelSelected ? "● " : "  ";
+        const cursorColor = selected
+          ? "cyan"
+          : isParallelSelected
+            ? "green"
+            : undefined;
         return (
           <Box key={`${i}-${item.value}`} width="100%">
-            <Text color={selected ? "cyan" : undefined}>
-              {selected ? "❯ " : "  "}
-            </Text>
+            {queueIndent && <Text>{queueIndent}</Text>}
+            <Text color={cursorColor}>{cursorGlyph}</Text>
+            {queuePos > 0 && <Text dimColor>→ </Text>}
             {hasAnyNew && <Text>{item.isNew ? "✨ " : "   "}</Text>}
             <Text color={selected ? "cyan" : undefined}>
               {item.type === "category" ? (item.isPlugin ? "📦 " : "📁 ") : ""}
@@ -64,10 +83,12 @@ interface AppProps {
   kadaiDir: string;
   /** Called when an action is selected to run with inherited stdio */
   onRunAction: (action: Action) => void;
+  onRunMultiAction: (mode: "sequential" | "parallel", actions: Action[]) => void;
 }
 
-export function App({ kadaiDir, onRunAction }: AppProps) {
+export function App({ kadaiDir, onRunAction, onRunMultiAction }: AppProps) {
   const { exit } = useApp();
+  const [runMode, runModeRef, setRunMode] = useRefState<RunMode>({ type: "normal" });
 
   const handleRunAction = (action: Action) => {
     onRunAction(action);
@@ -87,9 +108,11 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     searchActiveRef: search.searchActiveRef,
     searchQueryRef: search.searchQueryRef,
     selectedIndexRef: search.selectedIndexRef,
+    runModeRef,
     setSearchActive: search.setSearchActive,
     setSearchQuery: search.setSearchQuery,
     setSelectedIndex: search.setSelectedIndex,
+    setRunMode,
     resetSearch: search.resetSearch,
     pushScreen: nav.pushScreen,
     popScreen: nav.popScreen,
@@ -98,6 +121,7 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
     computeFiltered: search.computeFiltered,
     isActive: nav.currentScreen.type === "menu",
     onRunInteractive: handleRunAction,
+    onRunMultiAction,
   });
 
   if (loading) {
@@ -137,7 +161,20 @@ export function App({ kadaiDir, onRunAction }: AppProps) {
             items={filteredItems}
             selectedIndex={search.selectedIndex}
             pluginSyncStatuses={pluginSyncStatuses}
+            runMode={runMode}
           />
+        )}
+        {runMode.type === "sequential" && runMode.queue.length > 0 && (
+          <Box marginTop={1}>
+            <Text dimColor>{"→ "}</Text>
+            <Text>{runMode.queue.map((a) => a.id).join(" → ")}</Text>
+          </Box>
+        )}
+        {runMode.type === "parallel" && runMode.selected.size > 0 && (
+          <Box marginTop={1}>
+            <Text dimColor>{"∥ "}</Text>
+            <Text>{[...runMode.selected].join(" + ")}</Text>
+          </Box>
         )}
         <StatusBar />
       </Box>

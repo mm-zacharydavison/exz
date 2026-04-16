@@ -6,7 +6,7 @@ import { registerSharedDeps } from "./core/shared-deps.ts";
 registerSharedDeps();
 
 import { parseArgs } from "./core/args.ts";
-import { handleList, handleRun, handleRerun } from "./core/commands.ts";
+import { handleList, handleRun, handleRerun, handleRunSequential, handleRunParallel } from "./core/commands.ts";
 import { findZcliDir } from "./core/loader.ts";
 
 const cwd = process.cwd();
@@ -39,7 +39,14 @@ if (parsed.type === "mcp") {
   process.exit(0);
 }
 
-if (parsed.type === "list" || parsed.type === "run" || parsed.type === "sync" || parsed.type === "rerun") {
+if (
+  parsed.type === "list" ||
+  parsed.type === "run" ||
+  parsed.type === "run-sequential" ||
+  parsed.type === "run-parallel" ||
+  parsed.type === "sync" ||
+  parsed.type === "rerun"
+) {
   const kadaiDir = findZcliDir(cwd);
   if (!kadaiDir) {
     process.stderr.write(
@@ -57,6 +64,10 @@ if (parsed.type === "list" || parsed.type === "run" || parsed.type === "sync" ||
     await handleList({ kadaiDir, all: parsed.all });
   } else if (parsed.type === "run") {
     await handleRun({ kadaiDir, actionId: parsed.actionId, cwd });
+  } else if (parsed.type === "run-sequential") {
+    await handleRunSequential({ kadaiDir, actionIds: parsed.actionIds, cwd });
+  } else if (parsed.type === "run-parallel") {
+    await handleRunParallel({ kadaiDir, actionIds: parsed.actionIds, cwd });
   } else if (parsed.type === "rerun") {
     await handleRerun({ kadaiDir, cwd });
   } else {
@@ -204,6 +215,10 @@ function createStdinStream(): NodeJS.ReadStream {
 }
 
 let selectedAction: Action | null = null;
+let selectedMultiAction: {
+  mode: "sequential" | "parallel";
+  actions: Action[];
+} | null = null;
 
 const stdinStream = createStdinStream();
 
@@ -212,6 +227,12 @@ const instance = render(
     kadaiDir,
     onRunAction: (action: Action) => {
       selectedAction = action;
+    },
+    onRunMultiAction: (
+      mode: "sequential" | "parallel",
+      actions: Action[],
+    ) => {
+      selectedMultiAction = { mode, actions };
     },
   }),
   {
@@ -222,6 +243,18 @@ const instance = render(
 );
 
 await instance.waitUntilExit();
+
+if (!selectedAction && !selectedMultiAction) process.exit(0);
+
+if (selectedMultiAction) {
+  const { mode, actions } = selectedMultiAction;
+  const actionIds = actions.map((a) => a.id);
+  if (mode === "sequential") {
+    await handleRunSequential({ kadaiDir, actionIds, cwd });
+  } else {
+    await handleRunParallel({ kadaiDir, actionIds, cwd });
+  }
+}
 
 if (!selectedAction) process.exit(0);
 
