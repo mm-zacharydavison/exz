@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fixturePath, spawnCLI } from "./harness.ts";
+import { fixturePath, spawnCLI, TEST_HOME } from "./harness.ts";
 
 // ─── list --json ─────────────────────────────────────────────────
 
@@ -244,6 +244,95 @@ describe("kadai --rerun", () => {
       expect(stderr).toContain(".kadai");
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ─── kadai install ────────────────────────────────────────────────
+
+describe("kadai install", () => {
+  // fakeHome is a fresh temp dir — it will never be in the real PATH,
+  // so we rely on the real PATH (which has bun) rather than overriding it.
+
+  test("exits 0 and prints install path", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "kadai-install-home-"));
+    try {
+      const session = spawnCLI({
+        cwd: fakeHome,
+        args: ["install"],
+        env: { HOME: fakeHome },
+      });
+      const { exitCode, output } = await session.waitForExit();
+      expect(exitCode).toBe(0);
+      expect(output).toContain("Installed kadai to");
+      expect(output).toContain(".local/bin/kadai");
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test("creates binary at ~/.local/bin/kadai", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "kadai-install-home-"));
+    try {
+      const session = spawnCLI({
+        cwd: fakeHome,
+        args: ["install"],
+        env: { HOME: fakeHome },
+      });
+      await session.waitForExit();
+      // harness forces HOME=TEST_HOME so homedir() returns TEST_HOME
+      expect(existsSync(join(TEST_HOME, ".local", "bin", "kadai"))).toBe(true);
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test("warns when ~/.local/bin not in PATH", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "kadai-install-home-"));
+    try {
+      const session = spawnCLI({
+        cwd: fakeHome,
+        args: ["install"],
+        env: { HOME: fakeHome, SHELL: "/bin/zsh" },
+      });
+      const { output } = await session.waitForExit();
+      expect(output).toContain("~/.local/bin is not in your PATH");
+      expect(output).toContain("export PATH");
+      expect(output).toContain("~/.zshrc");
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test("no PATH warning when ~/.local/bin already in PATH", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "kadai-install-home-"));
+    try {
+      // harness forces HOME=TEST_HOME, so use TEST_HOME for the PATH entry
+      const localBin = join(TEST_HOME, ".local", "bin");
+      const session = spawnCLI({
+        cwd: fakeHome,
+        args: ["install"],
+        env: { PATH: `${process.env.PATH}:${localBin}` },
+      });
+      const { output } = await session.waitForExit();
+      expect(output).not.toContain("not in your PATH");
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test("fish shell gets fish_add_path instruction", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "kadai-install-home-"));
+    try {
+      const session = spawnCLI({
+        cwd: fakeHome,
+        args: ["install"],
+        env: { HOME: fakeHome, SHELL: "/usr/local/bin/fish" },
+      });
+      const { output } = await session.waitForExit();
+      expect(output).toContain("fish_add_path");
+    } finally {
+      rmSync(fakeHome, { recursive: true, force: true });
     }
   });
 });

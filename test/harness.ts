@@ -6,7 +6,7 @@ const PROJECT_ROOT = join(import.meta.dir, "..");
 const CLI_ENTRY = join(PROJECT_ROOT, "src", "cli.tsx");
 
 // Isolated HOME so tests never pick up the real ~/.kadai/actions/
-const TEST_HOME = mkdtempSync(join(tmpdir(), "kadai-test-home-"));
+export const TEST_HOME = mkdtempSync(join(tmpdir(), "kadai-test-home-"));
 
 /**
  * Strip ANSI escape codes from a string so we can assert on plain text.
