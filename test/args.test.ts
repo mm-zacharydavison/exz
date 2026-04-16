@@ -79,3 +79,56 @@ describe("parseArgs", () => {
     }
   });
 });
+
+describe("parseArgs — multi-run", () => {
+  test("run with two IDs → run-sequential", () => {
+    expect(parseArgs(["run", "build", "dev"])).toEqual({
+      type: "run-sequential",
+      actionIds: ["build", "dev"],
+    });
+  });
+
+  test("run with three IDs → run-sequential", () => {
+    expect(parseArgs(["run", "build", "test", "deploy"])).toEqual({
+      type: "run-sequential",
+      actionIds: ["build", "test", "deploy"],
+    });
+  });
+
+  test("run with + separator → run-parallel", () => {
+    expect(parseArgs(["run", "build", "+", "dev"])).toEqual({
+      type: "run-parallel",
+      actionIds: ["build", "dev"],
+    });
+  });
+
+  test("run with multiple + separators → run-parallel", () => {
+    expect(parseArgs(["run", "build", "+", "dev", "+", "test"])).toEqual({
+      type: "run-parallel",
+      actionIds: ["build", "dev", "test"],
+    });
+  });
+
+  test("mixed spaces and + → error", () => {
+    const result = parseArgs(["run", "build", "dev", "+", "test"]);
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect(result.message).toContain("mix");
+    }
+  });
+
+  test("trailing + is also a mix error", () => {
+    const result = parseArgs(["run", "a", "b", "+"]);
+    expect(result.type).toBe("error");
+    if (result.type === "error") {
+      expect(result.message).toContain("mix");
+    }
+  });
+
+  test("single ID still → run (unchanged)", () => {
+    expect(parseArgs(["run", "hello"])).toEqual({
+      type: "run",
+      actionId: "hello",
+    });
+  });
+});
