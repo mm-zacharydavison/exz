@@ -136,7 +136,9 @@ export async function handleRun(options: RunOptions): Promise<never> {
     process.stdin.setRawMode(false);
   }
   process.stdin.pause();
-  process.stdin.unref();
+  // `unref` is absent on Bun's stdin when fd 0 is /dev/null or closed
+  // (e.g. a non-interactive launch via the MCP server), so guard the call.
+  process.stdin.unref?.();
 
   const proc = Bun.spawn(cmd, {
     cwd,

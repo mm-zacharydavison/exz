@@ -66,8 +66,16 @@ export function spawnCLI(options: {
   cwd: string;
   args?: string[];
   env?: Record<string, string>;
+  /**
+   * How to wire the child's stdin.
+   * - `"pipe"` (default): a live pipe, allowing `press`/`type` to send keys.
+   * - `"ignore"`: backed by `/dev/null`, mimicking a non-interactive launch
+   *   (e.g. kadai run via the MCP server). `press`/`type` are unavailable.
+   * @default "pipe"
+   */
+  stdin?: "pipe" | "ignore";
 }): CLISession {
-  const { cwd, args = [], env } = options;
+  const { cwd, args = [], env, stdin = "pipe" } = options;
 
   let output = "";
   let stderr = "";
@@ -75,7 +83,7 @@ export function spawnCLI(options: {
 
   const proc = Bun.spawn(["bun", CLI_ENTRY, ...args], {
     cwd,
-    stdin: "pipe",
+    stdin,
     stdout: "pipe",
     stderr: "pipe",
     env: {
@@ -166,15 +174,19 @@ export function spawnCLI(options: {
     },
 
     press(key: string): void {
-      proc.stdin.write(key);
-      proc.stdin.flush();
+      const sink = proc.stdin;
+      if (!sink) throw new Error('press() requires stdin: "pipe"');
+      sink.write(key);
+      sink.flush();
     },
 
     type(text: string): void {
+      const sink = proc.stdin;
+      if (!sink) throw new Error('type() requires stdin: "pipe"');
       for (const char of text) {
-        proc.stdin.write(char);
+        sink.write(char);
       }
-      proc.stdin.flush();
+      sink.flush();
     },
 
     getOutput(): string {

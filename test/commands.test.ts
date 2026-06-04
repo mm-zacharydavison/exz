@@ -157,6 +157,21 @@ describe("kadai run <action-id>", () => {
     expect(output).toContain("Database reset complete.");
   });
 
+  test("runs with non-interactive stdin (/dev/null) without crashing", async () => {
+    // Regression: Bun's process.stdin lacks `unref`/`ref` when stdin is
+    // backed by /dev/null (e.g. launched by the kadai MCP server). The stdin
+    // cleanup in handleRun must not call those methods unconditionally.
+    const session = spawnCLI({
+      cwd: fixturePath("basic-repo"),
+      args: ["run", "hello"],
+      stdin: "ignore",
+    });
+    const { exitCode, output, stderr } = await session.waitForExit();
+    expect(stderr).not.toContain("unref");
+    expect(exitCode).toBe(0);
+    expect(output).toContain("Hello from kadai!");
+  });
+
   test("saves last action to .kadai/.last-action", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "kadai-rerun-"));
     const kadaiDir = join(tmpDir, ".kadai");
