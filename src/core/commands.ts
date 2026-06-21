@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { loadConfig } from "./config.ts";
 import { enterFullscreen } from "./fullscreen.ts";
 import { loadActions } from "./loader.ts";
@@ -211,5 +213,56 @@ export async function handleSync(options: SyncOptions): Promise<never> {
   }
 
   process.stdout.write("\nAll plugins synced.\n");
+  process.exit(0);
+}
+
+export async function handleInstall(): Promise<never> {
+  const entryPoint = Bun.main;
+  if (!entryPoint) {
+    process.stderr.write("Error: Cannot determine entry point.\n");
+    process.exit(1);
+  }
+
+  const bunPath = Bun.which("bun");
+  if (!bunPath) {
+    process.stderr.write("Error: Cannot find bun executable in PATH.\n");
+    process.exit(1);
+  }
+
+  const installDir = join(homedir(), ".local", "bin");
+  const outputPath = join(installDir, "kadai");
+
+  try {
+    mkdirSync(installDir, { recursive: true });
+  } catch (err) {
+    process.stderr.write(`Error: Cannot create ${installDir}: ${(err as Error).message}\n`);
+    process.exit(1);
+  }
+
+  // Shell wrapper so bun resolves from PATH at runtime, not compile-time
+  const wrapper = `#!/bin/sh\nexec "${bunPath}" "${entryPoint}" "$@"\n`;
+  writeFileSync(outputPath, wrapper, { mode: 0o755 });
+
+  process.stdout.write(`Installed kadai to ${outputPath}\n`);
+
+  const pathDirs = (process.env.PATH ?? "").split(":");
+  const inPath = pathDirs.some((d) => d.replace(/^~/, homedir()) === installDir);
+
+  if (!inPath) {
+    const shell = (process.env.SHELL ?? "").split("/").pop() ?? "";
+    process.stdout.write("\n~/.local/bin is not in your PATH.\n");
+    if (shell === "fish") {
+      process.stdout.write("Add it with:\n\n  fish_add_path ~/.local/bin\n");
+    } else {
+      const rcFile =
+        shell === "zsh" ? "~/.zshrc" :
+        shell === "bash" ? "~/.bashrc" :
+        "your shell rc file";
+      process.stdout.write(
+        `Add this to ${rcFile} and restart your shell:\n\n  export PATH="$HOME/.local/bin:$PATH"\n`,
+      );
+    }
+  }
+
   process.exit(0);
 }
